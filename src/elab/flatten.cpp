@@ -13,8 +13,7 @@ BitVector FlattenContext::flattenId(IdString name) const {
         auto w = mSpec.mPorts[pIdx].width();
         v.reserve(w);
         for (uint32_t i = 0; i < w; ++i) {
-            v.push_back(
-              BitAtom{BitAtomKind::PortBit, static_cast<uint32_t>(pIdx), i});
+            v.push_back(BitAtom{BitAtomKind::PortBit, name, i});
         }
         return v;
     }
@@ -23,8 +22,7 @@ BitVector FlattenContext::flattenId(IdString name) const {
         auto w = mSpec.mWires[wIdx].width();
         v.reserve(w);
         for (uint32_t i = 0; i < w; ++i) {
-            v.push_back(
-              BitAtom{BitAtomKind::WireBit, static_cast<uint32_t>(wIdx), i});
+            v.push_back(BitAtom{BitAtomKind::WireBit, name, i});
         }
         return v;
     }
@@ -43,7 +41,7 @@ BitVector FlattenContext::flattenNumber(uint64_t value, int width) const {
     for (int i = 0; i < width; ++i) {
         bool bit = (value >> i) & 1ULL;
         v.push_back(BitAtom{bit ? BitAtomKind::Const1 : BitAtomKind::Const0,
-                            0u,
+                            IdString{},
                             static_cast<uint32_t>(i)});
     }
     return v;
@@ -68,10 +66,8 @@ BitVector FlattenContext::flattenSlice(const ast::SliceExpr& s) const {
     v.reserve(width);
 
     auto computeOffset = [](int absIdx, const ast::WireEntity& ent) -> int {
-        if (ent.mMsb >= ent.mLsb)
-            return absIdx - ent.mLsb;
-        else
-            return ent.mLsb - absIdx;
+        if (ent.mMsb >= ent.mLsb) return absIdx - ent.mLsb;
+        else return ent.mLsb - absIdx;
     };
 
     if (pIdx >= 0) {
@@ -83,9 +79,8 @@ BitVector FlattenContext::flattenSlice(const ast::SliceExpr& s) const {
                 error("Slice out of range on port " + id.str());
                 return {};
             }
-            v.push_back(BitAtom{BitAtomKind::PortBit,
-                                static_cast<uint32_t>(pIdx),
-                                static_cast<uint32_t>(off)});
+            v.push_back(
+              BitAtom{BitAtomKind::PortBit, id, static_cast<uint32_t>(off)});
         }
     } else {
         const auto& ent = mSpec.mWires[wIdx].mEnt;
@@ -96,9 +91,8 @@ BitVector FlattenContext::flattenSlice(const ast::SliceExpr& s) const {
                 error("Slice out of range on wire " + id.str());
                 return {};
             }
-            v.push_back(BitAtom{BitAtomKind::WireBit,
-                                static_cast<uint32_t>(wIdx),
-                                static_cast<uint32_t>(off)});
+            v.push_back(
+              BitAtom{BitAtomKind::WireBit, id, static_cast<uint32_t>(off)});
         }
     }
 

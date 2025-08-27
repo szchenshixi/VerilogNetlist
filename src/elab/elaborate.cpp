@@ -16,8 +16,7 @@ static int64_t evalIntExpr(
   const ast::IntExpr& x,
   const std::unordered_map<IdString, int64_t, IdString::Hash>& params,
   std::ostream* diag = nullptr) {
-    if (std::holds_alternative<int64_t>(x.mV))
-        return std::get<int64_t>(x.mV);
+    if (std::holds_alternative<int64_t>(x.mV)) return std::get<int64_t>(x.mV);
     IdString n = std::get<IdString>(x.mV);
     auto it = params.find(n);
     if (it == params.end()) {
@@ -42,12 +41,10 @@ std::string makeModuleKey(
       v.begin(), v.end(), [](auto& a, auto& b) { return a.first < b.first; });
     std::ostringstream oss;
     oss << name.str();
-    if (!v.empty())
-        oss << "#";
+    if (!v.empty()) oss << "#";
     for (size_t i = 0; i < v.size(); ++i) {
         oss << v[i].first << "=" << v[i].second;
-        if (i + 1 < v.size())
-            oss << ",";
+        if (i + 1 < v.size()) oss << ",";
     }
     return oss.str();
 }
@@ -100,21 +97,25 @@ static bool isConnectable(const BitAtom& a) {
 }
 
 static net::BitId toBitId(const ModuleSpec& spec, const BitAtom& a) {
-    if (a.mKind == BitAtomKind::PortBit)
-        return spec.mBitMap.portBit(a.mOwnerIndex, a.mBitIndex);
-    if (a.mKind == BitAtomKind::WireBit)
-        return spec.mBitMap.wireBit(a.mOwnerIndex, a.mBitIndex);
+    if (a.mKind == BitAtomKind::PortBit) {
+        int idx = spec.findPortIndex(a.mOwnerIndex);
+        if (idx < 0) return UINT32_MAX;
+        return spec.mBitMap.portBit(static_cast<uint32_t>(idx), a.mBitIndex);
+    }
+    if (a.mKind == BitAtomKind::WireBit) {
+        int idx = spec.findPortIndex(a.mOwnerIndex);
+        if (idx < 0) return UINT32_MAX;
+        return spec.mBitMap.wireBit(static_cast<uint32_t>(idx), a.mBitIndex);
+    }
     return UINT32_MAX;
 }
 
 void wireAssigns(ModuleSpec& spec) {
-    if (!spec.mDecl)
-        return;
+    if (!spec.mDecl) return;
     FlattenContext fc(spec, &std::cerr);
 
     for (const auto& asg : spec.mDecl->mAssigns) {
-        if (!asg.mLhs || !asg.mRhs)
-            continue;
+        if (!asg.mLhs || !asg.mRhs) continue;
         auto L = fc.flattenExpr(*asg.mLhs);
         auto R = fc.flattenExpr(*asg.mRhs);
         if (L.size() != R.size()) {
@@ -149,8 +150,7 @@ ModuleSpec& getOrCreateSpec(
   ModuleLibrary& lib) {
     std::string key = makeModuleKey(decl.mName.str(), paramEnv);
     auto it = lib.find(key);
-    if (it != lib.end())
-        return *it->second;
+    if (it != lib.end()) return *it->second;
     auto s = elaborateModule(decl, paramEnv);
     ModuleSpec& ref = *s;
     lib.emplace(key, std::move(s));
@@ -212,8 +212,7 @@ static void expandGenerates(const ModuleSpec& spec,
 void linkInstances(ModuleSpec& spec, const ASTIndex& astIndex,
                    ModuleLibrary& lib, std::ostream& diag) {
     spec.mInstances.clear();
-    if (!spec.mDecl)
-        return;
+    if (!spec.mDecl) return;
 
     // Expand generate constructs and gather all instances to link.
     std::vector<ast::InstanceDecl> flatInsts;
@@ -301,19 +300,16 @@ static void dumpRecur(const ModuleSpec& spec, std::ostream& os,
                     const auto& a = b.mActual[i];
                     std::string label;
                     if (a.mKind == BitAtomKind::PortBit) {
-                        label = "port " +
-                                spec.mPorts[a.mOwnerIndex].mName.str() +
-                                "[off " + std::to_string(a.mBitIndex) + "]";
+                        label = "port " + a.mOwnerIndex.str() + "[off " +
+                                std::to_string(a.mBitIndex) + "]";
                     } else if (a.mKind == BitAtomKind::WireBit) {
-                        label = "wire " +
-                                spec.mWires[a.mOwnerIndex].mName.str() +
-                                "[off " + std::to_string(a.mBitIndex) + "]";
+                        label = "wire " + a.mOwnerIndex.str() + "[off " +
+                                std::to_string(a.mBitIndex) + "]";
                     } else {
                         label = (a.mKind == BitAtomKind::Const1) ? "1" : "0";
                     }
                     os << label;
-                    if (i + 1 < b.mActual.size())
-                        os << ", ";
+                    if (i + 1 < b.mActual.size()) os << ", ";
                 }
                 os << "]\n";
             }
@@ -356,9 +352,7 @@ bool makePinKey(const ModuleSpec& top, const ScopeId& scope, IdString portName,
     }
     int pIdx = cur->findPortIndex(portName);
     if (pIdx < 0) {
-        if (diag) {
-            (*diag) << "ERROR: No such port in module\n";
-        }
+        if (diag) { (*diag) << "ERROR: No such port in module\n"; }
         return false;
     }
     out.mScope = scope;

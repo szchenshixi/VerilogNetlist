@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <vector>
 
+#include "hdl/util/id_string.hpp"
+
 namespace hdl {
 namespace elab {
 
@@ -11,8 +13,8 @@ enum class BitAtomKind { PortBit, WireBit, Const0, Const1 };
 
 struct BitAtom {
     BitAtomKind mKind = BitAtomKind::WireBit;
-    uint32_t mOwnerIndex = 0; // port or wire index depending on kind
-    uint32_t mBitIndex = 0;   // LSB-first offset
+    IdString mOwnerIndex;   // port or wire index depending on kind
+    uint32_t mBitIndex = 0; // LSB-first offset
 };
 
 using BitVector = std::vector<BitAtom>;
