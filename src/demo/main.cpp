@@ -10,8 +10,8 @@ using namespace hdl;
 using namespace hdl::ast;
 using namespace hdl::elab;
 
-static ast::WireEntity makeEnt(int msb, int lsb) {
-    ast::WireEntity e;
+static ast::NetEntity makeEnt(int msb, int lsb) {
+    ast::NetEntity e;
     e.mMsb = msb;
     e.mLsb = lsb;
     return e;

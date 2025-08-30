@@ -35,8 +35,9 @@ std::string makeModuleKey(
     IdString name(nameText);
     std::vector<std::pair<std::string, int64_t>> v;
     v.reserve(params.size());
-    for (auto& kv : params)
+    for (auto& kv : params) {
         v.emplace_back(kv.first.str(), kv.second);
+    }
     std::sort(
       v.begin(), v.end(), [](auto& a, auto& b) { return a.first < b.first; });
     std::ostringstream oss;
@@ -163,8 +164,9 @@ static void expandGenerates(const ModuleSpec& spec,
                             std::vector<ast::InstanceDecl>& out,
                             std::ostream& diag) {
     // Copy original instances
-    for (const auto& i : decl.mInstances)
+    for (const auto& i : decl.mInstances) {
         out.push_back(i);
+    }
 
     // gen-if
     for (const auto& g : decl.mGenIfs) {

@@ -17,7 +17,7 @@ static uint32_t minimalWidthForValue(uint64_t v) {
     return w;
 }
 
-static const WireEntity* findEntity(const ModuleDecl& m, IdString name) {
+static const NetEntity* findEntity(const ModuleDecl& m, IdString name) {
     if (auto* p = m.findPort(name)) return &p->mEnt;
     if (auto* w = m.findWire(name)) return &w->mEnt;
     return nullptr;

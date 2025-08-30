@@ -1,0 +1,13 @@
+set auto-load safe-path /
+
+# 加载 IdString 的 Pretty Printer
+source ~/.config/gdb/idstring_printer.py
+
+# 以下是一些可选的通用美化设置 :cite[1]
+set print pretty on
+set print object on
+set print static-members on
+set print vtbl on
+set print demangle on
+set demangle-style gnu-v3
+set print sevenbit-strings off

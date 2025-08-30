@@ -1,23 +1,28 @@
-#include <gtest/gtest.h>
-#include "hdl/util/id_string.hpp"
-#include "hdl/ast/expr.hpp"
 #include "hdl/ast/decl.hpp"
+#include "hdl/ast/expr.hpp"
 #include "hdl/elab/elaborate.hpp"
 #include "hdl/elab/flatten.hpp"
 #include "hdl/elab/spec.hpp"
+#include "hdl/util/id_string.hpp"
+#include <gtest/gtest.h>
 
 using namespace hdl;
 using namespace hdl::ast;
 using namespace hdl::elab;
 
 // Helpers
-static WireEntity W(int msb, int lsb) { WireEntity e{msb, lsb}; return e; }
+// Nets
+static NetEntity n(int msb, int lsb) {
+    NetEntity e{msb, lsb};
+    return e;
+}
 
 TEST(IdString, Basic) {
     IdString a1("foo");
     IdString a2("foo");
     IdString b("bar");
     EXPECT_TRUE(a1.valid());
+    EXPECT_EQ(a1, a2);
     EXPECT_EQ(a1.id(), a2.id());
     EXPECT_NE(a1.id(), b.id());
     EXPECT_EQ(a1.str(), "foo");
@@ -30,8 +35,8 @@ TEST(Expr, WidthAndString) {
 
     ModuleDecl m;
     m.mName = M;
-    m.mPorts.push_back(PortDecl{x, PortDirection::In, W(7,0)});
-    m.mWires.push_back(WireDecl{y, W(3,0)});
+    m.mPorts.push_back(PortDecl{x, PortDirection::In, n(7, 0)});
+    m.mWires.push_back(WireDecl{y, n(3, 0)});
 
     auto id_x = Expr::id(x);
     auto id_y = Expr::id(y);
@@ -43,6 +48,8 @@ TEST(Expr, WidthAndString) {
 
     std::string s_str = exprToString(*s);
     EXPECT_EQ(s_str, "x[5:2]");
+    std::string c_str = exprToString(*c);
+    EXPECT_EQ(c_str, "{x[5:2], y}");
 }
 
 TEST(BitMap, AllocationAndReverse) {
@@ -53,9 +60,9 @@ TEST(BitMap, AllocationAndReverse) {
 
     ModuleDecl md;
     md.mName = M;
-    md.mPorts.push_back(PortDecl{p, PortDirection::In,  W(3,0)});   // 4 bits
-    md.mPorts.push_back(PortDecl{q, PortDirection::Out, W(1,0)});   // 2 bits
-    md.mWires.push_back(WireDecl{w, W(7,0)});                       // 8 bits
+    md.mPorts.push_back(PortDecl{p, PortDirection::In, n(3, 0)});  // 4 bits
+    md.mPorts.push_back(PortDecl{q, PortDirection::Out, n(1, 0)}); // 2 bits
+    md.mWires.push_back(WireDecl{w, n(7, 0)});                     // 8 bits
 
     auto specPtr = elaborateModule(md, {});
     ModuleSpec& spec = *specPtr;
@@ -63,11 +70,17 @@ TEST(BitMap, AllocationAndReverse) {
     EXPECT_EQ(spec.mWires.size(), 1u);
 
     // Check BitIds ranges: port[0]=0..3, port[1]=4..5, wire[0]=6..13
-    EXPECT_EQ(spec.mBitMap.portBit(0,0), 0u);
-    EXPECT_EQ(spec.mBitMap.portBit(0,3), 3u);
-    EXPECT_EQ(spec.mBitMap.portBit(1,1), 5u);
-    EXPECT_EQ(spec.mBitMap.wireBit(0,0), 6u);
-    EXPECT_EQ(spec.mBitMap.wireBit(0,7), 13u);
+    EXPECT_EQ(spec.mBitMap.portBit(0, 0), 0u);
+    EXPECT_EQ(spec.mBitMap.portBit(0, 3), 3u);
+    EXPECT_EQ(spec.mBitMap.portBit(1, 1), 5u);
+    EXPECT_EQ(spec.mBitMap.wireBit(0, 0), 6u);
+    EXPECT_EQ(spec.mBitMap.wireBit(0, 7), 13u);
+    // Same check but against port/wire name
+    EXPECT_EQ(spec.portBit(p, 0), 0u);
+    EXPECT_EQ(spec.portBit(p, 3), 3u);
+    EXPECT_EQ(spec.portBit(q, 1), 5u);
+    EXPECT_EQ(spec.wireBit(q, 0), 6u);
+    EXPECT_EQ(spec.wireBit(w, 7), 13u);
 
     // Reverse render
     EXPECT_EQ(spec.renderBit(0), "port " + p.str() + "[0]");
@@ -81,17 +94,18 @@ TEST(Connectivity, AliasAndNetId) {
 
     ModuleDecl md;
     md.mName = M;
-    md.mWires.push_back(WireDecl{a, W(1,0)}); // 2b
-    md.mWires.push_back(WireDecl{b, W(1,0)}); // 2b
+    md.mWires.push_back(WireDecl{a, n(1, 0)}); // 2b
+    md.mWires.push_back(WireDecl{b, n(1, 0)}); // 2b
     auto specPtr = elaborateModule(md, {});
     ModuleSpec& spec = *specPtr;
 
-    auto a0 = spec.mBitMap.wireBit(0, 0);
-    auto b1 = spec.mBitMap.wireBit(1, 1);
+    auto a0 = spec.wireBit(a, 0);
+    auto b1 = spec.wireBit(b, 1);
     spec.mBitMap.alias(a0, b1);
 
     EXPECT_EQ(spec.mBitMap.netId(a0), spec.mBitMap.netId(b1));
-    EXPECT_NE(spec.mBitMap.netId(a0), spec.mBitMap.netId(spec.mBitMap.wireBit(0, 1)));
+    EXPECT_NE(spec.mBitMap.netId(a0),
+              spec.mBitMap.netId(spec.mBitMap.wireBit(0, 1)));
 }
 
 TEST(Flatten, IdSliceConcat) {
@@ -101,8 +115,8 @@ TEST(Flatten, IdSliceConcat) {
 
     ModuleDecl md;
     md.mName = M;
-    md.mPorts.push_back(PortDecl{x, PortDirection::In,  W(7,0)});
-    md.mWires.push_back(WireDecl{y, W(3,0)});
+    md.mPorts.push_back(PortDecl{x, PortDirection::In, n(7, 0)});
+    md.mWires.push_back(WireDecl{y, n(3, 0)});
     auto specPtr = elaborateModule(md, {});
     ModuleSpec& spec = *specPtr;
     FlattenContext fc(spec, nullptr);
@@ -115,9 +129,11 @@ TEST(Flatten, IdSliceConcat) {
     EXPECT_EQ(v_slice.size(), 4u);
     EXPECT_EQ(v_slice.front().mBitIndex, 2u); // LSB-first; first is x[2]
 
-    auto v_concat = fc.flattenExpr(*Expr::concat({Expr::slice(x,5,2), Expr::id(y)}));
+    auto v_concat =
+      fc.flattenExpr(*Expr::concat({Expr::slice(x, 5, 2), Expr::id(y)}));
     EXPECT_EQ(v_concat.size(), 8u);
-    EXPECT_EQ(v_concat.front().mKind, BitAtomKind::WireBit); // LSB comes from y
+    EXPECT_EQ(v_concat.front().mKind,
+              BitAtomKind::WireBit); // LSB comes from y
     EXPECT_EQ(v_concat.back().mKind, BitAtomKind::PortBit);
 }
 
@@ -128,12 +144,12 @@ TEST(Elab, AssignWiring) {
 
     ModuleDecl md;
     md.mName = A;
-    md.mPorts.push_back(PortDecl{in,  PortDirection::In,  W(7,0)});
-    md.mPorts.push_back(PortDecl{out, PortDirection::Out, W(7,0)});
+    md.mPorts.push_back(PortDecl{in, PortDirection::In, n(7, 0)});
+    md.mPorts.push_back(PortDecl{out, PortDirection::Out, n(7, 0)});
 
     // assign out = {in[3:0], in[7:4]}
     auto lhs = Expr::id(out);
-    auto rhs = Expr::concat({Expr::slice(in,3,0), Expr::slice(in,7,4)});
+    auto rhs = Expr::concat({Expr::slice(in, 3, 0), Expr::slice(in, 7, 4)});
     md.mAssigns.push_back(AssignStmt{lhs, rhs});
 
     auto specPtr = elaborateModule(md, {});
@@ -142,11 +158,11 @@ TEST(Elab, AssignWiring) {
 
     // out[0] == in[4], out[7] == in[3]
     auto outIdx = spec.findPortIndex(out);
-    auto inIdx  = spec.findPortIndex(in);
+    auto inIdx = spec.findPortIndex(in);
     auto out0 = spec.mBitMap.portBit(outIdx, 0);
-    auto in4  = spec.mBitMap.portBit(inIdx, 4);
+    auto in4 = spec.mBitMap.portBit(inIdx, 4);
     auto out7 = spec.mBitMap.portBit(outIdx, 7);
-    auto in3  = spec.mBitMap.portBit(inIdx, 3);
+    auto in3 = spec.mBitMap.portBit(inIdx, 3);
     EXPECT_EQ(spec.mBitMap.netId(out0), spec.mBitMap.netId(in4));
     EXPECT_EQ(spec.mBitMap.netId(out7), spec.mBitMap.netId(in3));
 }
@@ -168,23 +184,31 @@ TEST(Generate, IfAndFor) {
     // Callee A
     ModuleDecl modA;
     modA.mName = A;
-    modA.mPorts.push_back(PortDecl{p_in, PortDirection::In,  W(7,0)});
-    modA.mPorts.push_back(PortDecl{p_out,PortDirection::Out, W(7,0)});
+    modA.mPorts.push_back(PortDecl{p_in, PortDirection::In, n(7, 0)});
+    modA.mPorts.push_back(PortDecl{p_out, PortDirection::Out, n(7, 0)});
 
     // Top
     ModuleDecl top;
     top.mName = Top;
     top.mParams.push_back(ParamDecl{DO_EXTRA, 1});
     top.mParams.push_back(ParamDecl{REPL, 3});
-    top.mWires.push_back(WireDecl{w0, W(7,0)});
-    top.mWires.push_back(WireDecl{w1, W(7,0)});
-    top.mInstances.push_back(InstanceDecl{uA, A, {}, {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}});
+    top.mWires.push_back(WireDecl{w0, n(7, 0)});
+    top.mWires.push_back(WireDecl{w1, n(7, 0)});
+    top.mInstances.push_back(InstanceDecl{
+      uA,
+      A,
+      {},
+      {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}});
     // if (DO_EXTRA) uA2
     {
         GenIfDecl gi;
         gi.mLabel = g_if;
         gi.mCond = intParam(DO_EXTRA);
-        InstanceDecl x{uA2, A, {}, {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}};
+        InstanceDecl x{
+          uA2,
+          A,
+          {},
+          {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}};
         gi.mThenInsts.push_back(x);
         top.mGenIfs.push_back(gi);
     }
@@ -195,8 +219,12 @@ TEST(Generate, IfAndFor) {
         gf.mLoopVar = IdString("i");
         gf.mStart = intConst(0);
         gf.mLimit = intParam(REPL);
-        gf.mStep  = intConst(1);
-        InstanceDecl t{IdString("U"), A, {}, {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}};
+        gf.mStep = intConst(1);
+        InstanceDecl t{
+          IdString("U"),
+          A,
+          {},
+          {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}};
         gf.mBody.push_back(t);
         top.mGenFors.push_back(gf);
     }
@@ -205,13 +233,13 @@ TEST(Generate, IfAndFor) {
     ModuleLibrary lib;
     ASTIndex idx;
     idx.emplace(Top, std::cref(top));
-    idx.emplace(A,   std::cref(modA));
+    idx.emplace(A, std::cref(modA));
 
     // Get callee spec first
     ModuleSpec& A_s = getOrCreateSpec(modA, {}, lib);
 
     // Top spec with params
-    ModuleSpec& Top_s = getOrCreateSpec(top, {{DO_EXTRA,1},{REPL,3}}, lib);
+    ModuleSpec& Top_s = getOrCreateSpec(top, {{DO_EXTRA, 1}, {REPL, 3}}, lib);
 
     // Link instances
     linkInstances(Top_s, idx, lib, std::cerr);
@@ -226,9 +254,8 @@ TEST(Generate, IfAndFor) {
 }
 
 TEST(ModuleKey, MakeKey) {
-    std::unordered_map<IdString,int64_t,IdString::Hash> params{
-        { IdString("DO_EXTRA"), 1 }, { IdString("REPL"), 2 }
-    };
+    std::unordered_map<IdString, int64_t, IdString::Hash> params{
+      {IdString("DO_EXTRA"), 1}, {IdString("REPL"), 2}};
     std::string key = makeModuleKey("Top", params);
     // Deterministic order: DO_EXTRA,REPL
     EXPECT_EQ(key, "Top#DO_EXTRA=1,REPL=2");

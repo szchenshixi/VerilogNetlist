@@ -36,8 +36,8 @@ class IdString {
     static constexpr uint32_t kInvalid = 0xFFFFFFFFu;
     uint32_t mId;
 
-    static uint32_t internGlobal(std::string_view);
-    static const std::string& resolveGlobal(uint32_t);
+    static uint32_t internGlobal(std::string_view sv);
+    static const std::string& resolveGlobal(uint32_t id);
     static const std::string& getInvalidStr() {
         static const std::string kInvalidStr = "<Invalid>";
         return kInvalidStr;

@@ -18,13 +18,13 @@ namespace elab {
 struct PortSpec {
     IdString mName;
     PortDirection mDir = PortDirection::In;
-    ast::WireEntity mEnt; // range/width
+    ast::NetEntity mEnt; // range/width
     uint32_t width() const { return mEnt.width(); }
 };
 
 struct WireSpec {
     IdString mName;
-    ast::WireEntity mEnt;
+    ast::NetEntity mEnt;
     uint32_t width() const { return mEnt.width(); }
 };
 
@@ -57,40 +57,16 @@ struct ModuleSpec {
 
     std::vector<hier::ModuleInstance> mInstances;
 
-    int findPortIndex(IdString n) const {
-        auto it = mPortIndex.find(n);
-        return it == mPortIndex.end() ? -1 : static_cast<int>(it->second);
-    }
-    int findWireIndex(IdString n) const {
-        auto it = mWireIndex.find(n);
-        return it == mWireIndex.end() ? -1 : static_cast<int>(it->second);
-    }
+    int findPortIndex(IdString n) const;
+    int findWireIndex(IdString n) const;
 
-    void dumpLayout(std::ostream& os) {
-        os << "ModuleSpec " << mName.str() << " layout:\n";
-        os << "  Ports:\n";
-        for (size_t i = 0; i < mPorts.size(); ++i) {
-            const auto& p = mPorts[i];
-            os << "    [" << i << "] " << p.mName.str()
-               << " dir=" << to_string(p.mDir) << " range=[" << p.mEnt.mMsb
-               << ":" << p.mEnt.mLsb << "]" << " width=" << p.width() << "\n";
-        }
-        os << "  Wires:\n";
-        for (size_t i = 0; i < mWires.size(); ++i) {
-            const auto& w = mWires[i];
-            os << "    [" << i << "] " << w.mName.str() << " range=["
-               << w.mEnt.mMsb << ":" << w.mEnt.mLsb << "]"
-               << " width=" << w.width() << "\n";
-        }
-    }
+    net::BitId portBit(IdString name, uint32_t bitOff) const;
+    net::BitId wireBit(IdString name, uint32_t bitOff) const;
 
-    void dumpConnectivity(std::ostream& os) {
-        mBitMap.dumpConnectivity(*this, os);
-    }
+    void dumpLayout(std::ostream& os);
+    void dumpConnectivity(std::ostream& os);
 
-    std::string renderBit(net::BitId b) const {
-        return mBitMap.renderBit(*this, b);
-    }
+    std::string renderBit(net::BitId b) const;
 };
 
 // Library keyed by "name#paramSig"

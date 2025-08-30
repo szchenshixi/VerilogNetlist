@@ -65,7 +65,7 @@ BitVector FlattenContext::flattenSlice(const ast::SliceExpr& s) const {
     BitVector v;
     v.reserve(width);
 
-    auto computeOffset = [](int absIdx, const ast::WireEntity& ent) -> int {
+    auto computeOffset = [](int absIdx, const ast::NetEntity& ent) -> int {
         if (ent.mMsb >= ent.mLsb) return absIdx - ent.mLsb;
         else return ent.mLsb - absIdx;
     };

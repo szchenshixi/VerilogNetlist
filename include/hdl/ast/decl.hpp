@@ -12,7 +12,7 @@
 namespace hdl {
 namespace ast {
 
-struct WireEntity {
+struct NetEntity {
     int mMsb = 0;
     int mLsb = 0;
     uint32_t width() const { return width_from_range(mMsb, mLsb); }
@@ -21,12 +21,12 @@ struct WireEntity {
 struct PortDecl {
     IdString mName;
     PortDirection mDir = PortDirection::In;
-    WireEntity mEnt;
+    NetEntity mEnt;
 };
 
 struct WireDecl {
     IdString mName;
-    WireEntity mEnt;
+    NetEntity mEnt;
 };
 
 struct ConnDecl {
