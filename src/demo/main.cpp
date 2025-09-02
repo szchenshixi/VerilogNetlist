@@ -5,6 +5,7 @@
 #include "hdl/elab/elaborate.hpp"
 #include "hdl/elab/spec.hpp"
 #include "hdl/util/id_string.hpp"
+#include "hdl/vis/json.hpp"
 
 using namespace hdl;
 using namespace hdl::ast;
@@ -155,20 +156,40 @@ int main() {
     Top.dumpConnectivity(std::cout);
 
     // Dump hierarchy starting from Top
-    std::cout << "\n=== Instance Hierarchy (ModuleSpec -> ModuleInstance -> "
+    std::cout << "\n=== Instance Hierarchy (ModuleSpec -> ModuleInstance ->"
                  "ModuleSpec) ===\n";
     hier::dumpInstanceTree(Top, std::cout);
 
     // Sample PinKey: first child of Top, port p_in
     std::cout << "\n=== PinKey sample ===\n";
     hier::ScopeId s;
-    if (!Top.mInstances.empty())
-        s.mPath.push_back(0);
+    if (!Top.mInstances.empty()) s.mPath.push_back(0);
     hier::PinKey pk;
     if (hier::makePinKey(Top, s, p_in, pk, &std::cerr)) {
         std::cout << "PinKey scope=" << pk.mScope.toString()
                   << " portIndex=" << pk.mPortIndex << "\n";
     }
+
+    // Export Top view JSON
+    auto jTop = vis::buildViewJson(Top);
+
+    // Add mock timing path
+    vis::TimingPath tp;
+    tp.mId = "tp0";
+    tp.mName = "w0[4] -> uA.p_in[4] -> uA.p_out[0] -> w1[0]";
+    tp.mSlackNs = -0.12;
+    tp.mDelayNs = 1.42;
+    tp.mStart = {"w0", 4};
+    tp.mEnd = {"w1", 0};
+    tp.mArcs.push_back({"w0", "uA.p_in", 4, 4, 0.10, "net w0[4]"});
+    tp.mArcs.push_back({"uA.p_in", "uA.p_out", 4, 0, 1.20, "assign 4→0"});
+    tp.mArcs.push_back({"uA.p_out", "w1", 0, 0, 0.12, "net w1[0]"});
+    vis::addTimingPathsToViewJson(jTop, {tp});
+
+    // Write to file
+    vis::writeJsonFile("view_top.json", jTop);
+
+    std::cout << "Wrote view_top.json (load it in the visualizer).\n";
 
     std::cout << "\nDone.\n";
     return 0;

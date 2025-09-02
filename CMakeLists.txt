@@ -25,8 +25,10 @@ add_library(hdl STATIC
     src/elab/flatten.cpp
     src/elab/elaborate.cpp
     src/hier/instance.cpp
+    src/vis/json.cpp
     src/util/id_string.cpp
 )
+target_link_libraries(hdl PUBLIC nlohmann_json::nlohmann_json)
 
 add_executable(hdl_demo
     src/demo/main.cpp
