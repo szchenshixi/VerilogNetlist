@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.15)
 project(
-    min_hdl_netlist
-    VERSION 0.1.0
-    DESCRIPTION "Test repository for project utilities"
-    HOMEPAGE_URL ""
-    LANGUAGES C CXX)
+  min_hdl_netlist
+  VERSION 0.1.0
+  DESCRIPTION "Test repository for project utilities"
+  HOMEPAGE_URL ""
+  LANGUAGES C CXX)
 
 include(cmake/project-is-top-level.cmake)
 include(cmake/variables.cmake)
@@ -17,28 +17,58 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
-add_library(hdl STATIC
-    src/ast/expr.cpp
-    src/net/connectivity.cpp
-    src/net/bitmap.cpp
-    src/elab/spec.cpp
-    src/elab/flatten.cpp
-    src/elab/elaborate.cpp
-    src/hier/instance.cpp
-    src/vis/json.cpp
-    src/util/id_string.cpp
-)
+# ------------------------------------------------------------------------------
+# hdl
+add_library(
+  hdl STATIC
+  src/ast/expr.cpp
+  src/net/connectivity.cpp
+  src/net/bitmap.cpp
+  src/elab/spec.cpp
+  src/elab/flatten.cpp
+  src/elab/elaborate.cpp
+  src/hier/instance.cpp
+  src/vis/json.cpp
+  src/util/id_string.cpp)
 target_link_libraries(hdl PUBLIC nlohmann_json::nlohmann_json)
+# ------------------------------------------------------------------------------
 
-add_executable(hdl_demo
-    src/demo/main.cpp
-)
+# ------------------------------------------------------------------------------
+# hdl_demo
+add_executable(hdl_demo src/demo/main.cpp)
 target_link_libraries(hdl_demo PRIVATE hdl)
+# ------------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------------
+# hdl_tcl
+set(CMD_SOURCES
+    src/tcl/cmd/register_all.cpp
+    src/tcl/cmd/cmd_help.cpp
+    src/tcl/cmd/cmd_specs.cpp
+    src/tcl/cmd/cmd_invert.cpp
+    src/tcl/cmd/cmd_elab.cpp
+    src/tcl/cmd/cmd_select.cpp
+    src/tcl/cmd/cmd_selection.cpp
+    src/tcl/cmd/cmd_ports.cpp
+    src/tcl/cmd/cmd_wires.cpp
+    src/tcl/cmd/cmd_dump.cpp
+    src/tcl/cmd/cmd_query.cpp
+    src/tcl/cmd/cmd_undo.cpp)
+add_executable(hdl_tcl src/demo/tcl_console_main.cpp src/tcl/console.cpp
+                       ${CMD_SOURCES})
+# if(HDL_USE_READLINE AND Readline_FOUND)
+  target_compile_definitions(hdl_tcl PRIVATE HDL_HAVE_READLINE=1)
+#   target_link_libraries(hdl_tcl PRIVATE Readline::Readline)
+  target_include_directories(hdl_tcl PRIVATE ${READLINE_INCLUDE_DIR})
+  target_link_libraries(hdl_tcl PRIVATE ${READLINE_LIBRARY})
+# endif()
+target_include_directories(hdl_tcl PRIVATE ${TCL_INCLUDE_PATH}
+                                           ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(hdl_tcl PRIVATE hdl ${TCL_LIBRARY})
+# ------------------------------------------------------------------------------
 
 enable_testing()
-add_executable(hdl_tests
-    test/test_hdl.cpp
-)
+add_executable(hdl_tests test/test_hdl.cpp)
 target_link_libraries(hdl_tests PRIVATE hdl gtest_main)
 include(GoogleTest)
 gtest_discover_tests(hdl_tests)

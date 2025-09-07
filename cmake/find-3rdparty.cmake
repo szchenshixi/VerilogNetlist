@@ -73,3 +73,11 @@ fetchcontent_declare(
 
 fetchcontent_makeavailable(fmt CLI11 plog nlohmann_json gtest)
 
+find_package(TCL REQUIRED)
+
+option(HDL_USE_READLINE "Enable GNU Readline for the Tcl console" ON)
+if (HDL_USE_READLINE)
+#   find_package(Readline)
+  find_library(READLINE_LIBRARY readline)
+  find_path(READLINE_INCLUDE_DIR readline/readline.h)
+endif()
