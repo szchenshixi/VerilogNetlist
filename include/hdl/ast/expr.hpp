@@ -8,8 +8,7 @@
 
 #include "hdl/util/id_string.hpp"
 
-namespace hdl {
-namespace ast {
+namespace hdl::ast {
 
 struct Expr;
 
@@ -68,5 +67,4 @@ struct ModuleDecl;
 uint32_t exprBitWidth(const Expr& e, const ModuleDecl& m);
 std::string exprToString(const Expr& e);
 
-} // namespace ast
-} // namespace hdl
+} // namespace hdl::ast

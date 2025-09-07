@@ -12,8 +12,7 @@
 #include "hdl/net/bitmap.hpp"
 #include "hdl/util/id_string.hpp"
 
-namespace hdl {
-namespace elab {
+namespace hdl::elab {
 
 struct PortSpec {
     IdString mName;
@@ -73,5 +72,4 @@ struct ModuleSpec {
 using ModuleLibrary =
   std::unordered_map<std::string, std::unique_ptr<ModuleSpec>>;
 
-} // namespace elab
-} // namespace hdl
+} // namespace hdl::elab

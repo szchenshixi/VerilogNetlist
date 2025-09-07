@@ -4,8 +4,7 @@
 #include <sstream>
 #include <unordered_map>
 
-namespace hdl {
-namespace vis {
+namespace hdl::vis {
 
 using nlohmann::json;
 
@@ -85,7 +84,7 @@ segmentsForBinding(const elab::ModuleSpec& spec,
 
     auto ownerName = [&](const elab::BitAtom& a) -> std::string {
         return a.mOwnerIndex.valid() ? a.mOwnerIndex.str()
-                                  : std::string("<unknown>");
+                                     : std::string("<unknown>");
     };
 
     int i = 0;
@@ -218,5 +217,4 @@ void addTimingPathsToViewJson(nlohmann::json& view,
     }
 }
 
-} // namespace vis
-} // namespace hdl
+} // namespace hdl::vis

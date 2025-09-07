@@ -13,8 +13,7 @@
 #include "hdl/elab/spec.hpp"
 #include "hdl/util/id_string.hpp"
 
-namespace hdl {
-namespace tcl {
+namespace hdl::tcl {
 
 // Forward decl
 class Console;
@@ -193,7 +192,7 @@ class Console {
 
 #ifdef HDL_HAVE_READLINE
     static char** complt(const char* text, int start, int end);
-    static Console* s_completion_self;
+    static Console* msCompletionSelf;
 #endif
 
   private:
@@ -228,5 +227,4 @@ class Console {
     bool mInReplay = false; // avoid re-recording when running undo/redo
 };
 
-} // namespace tcl
-} // namespace hdl
+} // namespace hdl::tcl

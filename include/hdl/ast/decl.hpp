@@ -9,8 +9,7 @@
 #include "hdl/common.hpp"
 #include "hdl/util/id_string.hpp"
 
-namespace hdl {
-namespace ast {
+namespace hdl::ast {
 
 struct NetEntity {
     int mMsb = 0;
@@ -110,5 +109,4 @@ struct ModuleDecl {
     }
 };
 
-} // namespace ast
-} // namespace hdl
+} // namespace hdl::ast

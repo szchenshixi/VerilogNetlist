@@ -3,8 +3,7 @@
 
 #include "hdl/elab/flatten.hpp"
 
-namespace hdl {
-namespace elab {
+namespace hdl::elab {
 
 BitVector FlattenContext::flattenId(IdString name) const {
     BitVector v;
@@ -127,5 +126,4 @@ BitVector FlattenContext::flattenExpr(const ast::Expr& e) const {
       e.mNode);
 }
 
-} // namespace elab
-} // namespace hdl
+} // namespace hdl::elab

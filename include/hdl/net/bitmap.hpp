@@ -7,12 +7,11 @@
 
 #include "hdl/net/connectivity.hpp"
 
-namespace hdl {
-namespace elab {
+namespace hdl::elab {
 struct ModuleSpec;
 }
 
-namespace net {
+namespace hdl::net {
 
 struct BitOwnerRef {
     enum class Kind { Port, Wire } mKind = Kind::Wire;
@@ -58,5 +57,4 @@ struct BitMap {
     }
 };
 
-} // namespace net
-} // namespace hdl
+} // namespace hdl::net

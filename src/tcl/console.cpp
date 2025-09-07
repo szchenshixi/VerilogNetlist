@@ -15,8 +15,7 @@
 #include "hdl/hier/instance.hpp"
 #include "hdl/tcl/console.hpp"
 
-namespace hdl {
-namespace tcl {
+namespace hdl::tcl {
 
 static inline bool starts_with(const std::string& s, const std::string& p) {
     return s.size() >= p.size() && std::equal(p.begin(), p.end(), s.begin());
@@ -97,11 +96,11 @@ int Console::evalLine(const std::string& line) {
 }
 
 #ifdef HDL_HAVE_READLINE
-Console* Console::s_completion_self = nullptr;
+Console* Console::msCompletionSelf = nullptr;
 
 char** Console::complt(const char* text, int start, int end) {
     (void)end;
-    Console* self = s_completion_self;
+    Console* self = msCompletionSelf;
     if (!self) return nullptr;
 
     std::string buf(rl_line_buffer ? rl_line_buffer : "");
@@ -128,7 +127,7 @@ char** Console::complt(const char* text, int start, int end) {
 
 int Console::repl() {
 #ifdef HDL_HAVE_READLINE
-    Console::s_completion_self = this;
+    Console::msCompletionSelf = this;
     rl_attempted_completion_function = &Console::complt;
 #endif
 
@@ -456,5 +455,4 @@ int Console::doRedo(Tcl_Interp* ip) {
     return TCL_OK;
 }
 
-} // namespace tcl
-} // namespace hdl
+} // namespace hdl::tcl

@@ -9,8 +9,7 @@
 #include "hdl/elab/bits.hpp"
 #include "hdl/elab/spec.hpp"
 
-namespace hdl {
-namespace elab {
+namespace hdl::elab {
 
 struct FlattenContext {
     const ModuleSpec& mSpec;
@@ -31,5 +30,4 @@ struct FlattenContext {
     }
 };
 
-} // namespace elab
-} // namespace hdl
+} // namespace hdl::elab

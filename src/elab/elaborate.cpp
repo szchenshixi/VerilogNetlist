@@ -9,8 +9,7 @@
 #include "hdl/elab/spec.hpp"
 #include "hdl/util/id_string.hpp"
 
-namespace hdl {
-namespace elab {
+namespace hdl::elab {
 
 static int64_t evalIntExpr(
   const ast::IntExpr& x,
@@ -364,5 +363,4 @@ bool makePinKey(const ModuleSpec& top, const ScopeId& scope, IdString portName,
 
 } // namespace hier
 
-} // namespace elab
-} // namespace hdl
+} // namespace hdl::elab

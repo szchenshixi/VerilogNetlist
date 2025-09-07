@@ -8,8 +8,7 @@
 #include "hdl/elab/flatten.hpp"
 #include "hdl/elab/spec.hpp"
 
-namespace hdl {
-namespace elab {
+namespace hdl::elab {
 
 // Make a canonical key for a module specialization (name + sorted params).
 std::string makeModuleKey(
@@ -68,5 +67,4 @@ bool makePinKey(const ModuleSpec& top, const ScopeId& scope, IdString portName,
 
 } // namespace hier
 
-} // namespace elab
-} // namespace hdl
+} // namespace hdl::elab

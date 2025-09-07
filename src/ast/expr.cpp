@@ -4,8 +4,7 @@
 #include "hdl/ast/decl.hpp"
 #include "hdl/ast/expr.hpp"
 
-namespace hdl {
-namespace ast {
+namespace hdl::ast {
 
 static uint32_t minimalWidthForValue(uint64_t v) {
     if (v == 0) return 1;
@@ -77,5 +76,4 @@ std::string exprToString(const Expr& e) {
     return oss.str();
 }
 
-} // namespace ast
-} // namespace hdl
+} // namespace hdl::ast

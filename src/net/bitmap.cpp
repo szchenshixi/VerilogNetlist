@@ -2,8 +2,7 @@
 #include "hdl/elab/spec.hpp"
 #include "hdl/util/id_string.hpp"
 
-namespace hdl {
-namespace net {
+namespace hdl::net {
 
 void BitMap::build(const elab::ModuleSpec& spec) {
     reset();
@@ -59,5 +58,4 @@ std::string BitMap::renderBit(const elab::ModuleSpec& spec, BitId g) const {
     }
 }
 
-} // namespace net
-} // namespace hdl
+} // namespace hdl::net

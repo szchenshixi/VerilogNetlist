@@ -1,7 +1,6 @@
 #include "hdl/elab/spec.hpp"
 
-namespace hdl {
-namespace elab {
+namespace hdl::elab {
 int ModuleSpec::findPortIndex(IdString n) const {
     auto it = mPortIndex.find(n);
     return it == mPortIndex.end() ? -1 : static_cast<int>(it->second);
@@ -50,5 +49,4 @@ void ModuleSpec::dumpConnectivity(std::ostream& os) {
 std::string ModuleSpec::renderBit(net::BitId b) const {
     return mBitMap.renderBit(*this, b);
 }
-} // namespace elab
-} // namespace hdl
+} // namespace hdl::elab

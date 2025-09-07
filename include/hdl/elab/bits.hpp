@@ -6,8 +6,7 @@
 
 #include "hdl/util/id_string.hpp"
 
-namespace hdl {
-namespace elab {
+namespace hdl::elab {
 
 enum class BitAtomKind { PortBit, WireBit, Const0, Const1 };
 
@@ -19,5 +18,4 @@ struct BitAtom {
 
 using BitVector = std::vector<BitAtom>;
 
-} // namespace elab
-} // namespace hdl
+} // namespace hdl::elab

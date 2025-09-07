@@ -1,7 +1,6 @@
 #include "hdl/net/connectivity.hpp"
 
-namespace hdl {
-namespace net {
+namespace hdl::net {
 // -------------------------------------------
 // UnionFindBits
 BitId UnionFindBits::addNode() {
@@ -82,5 +81,4 @@ void Connectivity::dump(std::ostream& os,
 // End of Connectivity
 // -------------------------------------------
 
-} // namespace net
-} // namespace hdl
+} // namespace hdl::net

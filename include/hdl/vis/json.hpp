@@ -10,8 +10,7 @@
 #include "hdl/elab/bits.hpp" // BitAtomKind, BitAtom
 #include "hdl/elab/spec.hpp" // ModuleSpec, instances, ports, wires
 
-namespace hdl {
-namespace vis {
+namespace hdl::vis {
 
 // Timing model you can fill from your STA
 struct TimingArc {
@@ -58,5 +57,4 @@ inline void writeJsonFile(const std::string& path, const nlohmann::json& j) {
     ofs << j.dump(2) << std::endl;
 }
 
-} // namespace vis
-} // namespace hdl
+} // namespace hdl::vis

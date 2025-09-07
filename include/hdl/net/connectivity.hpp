@@ -8,8 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace hdl {
-namespace net {
+namespace hdl::net {
 
 using BitId = uint32_t;
 using NetId = uint32_t;
@@ -37,5 +36,4 @@ struct Connectivity {
               const std::function<std::string(BitId)>& renderBit);
 };
 
-} // namespace net
-} // namespace hdl
+} // namespace hdl::net
