@@ -75,11 +75,11 @@ TEST(BitMap, AllocationAndReverse) {
     EXPECT_EQ(spec.mBitMap.portBit(1, 1), 5u);
     EXPECT_EQ(spec.mBitMap.wireBit(0, 0), 6u);
     EXPECT_EQ(spec.mBitMap.wireBit(0, 7), 13u);
-    // Same check but against port/wire name
+    // Check BitIds ranges with helper functions
     EXPECT_EQ(spec.portBit(p, 0), 0u);
     EXPECT_EQ(spec.portBit(p, 3), 3u);
     EXPECT_EQ(spec.portBit(q, 1), 5u);
-    EXPECT_EQ(spec.wireBit(q, 0), 6u);
+    EXPECT_EQ(spec.wireBit(w, 0), 6u);
     EXPECT_EQ(spec.wireBit(w, 7), 13u);
 
     // Reverse render

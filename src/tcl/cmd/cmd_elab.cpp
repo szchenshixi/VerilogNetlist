@@ -11,9 +11,6 @@ static int cmd_elab(Console& c, Tcl_Interp* ip, const Console::Args& a) {
         return TCL_ERROR;
     }
     hdl::IdString name(a[0]);
-    // auto env = Console::parseParamTokens(
-    //   a, 1, c.mDiag ? *static_cast<std::ostream*>(nullptr) : std::cerr);
-
     auto env = Console::parseParamTokens(a, 1, std::cerr);
     hdl::IdString key;
     if (!c.getOrElabByName(name, env, &key)) {

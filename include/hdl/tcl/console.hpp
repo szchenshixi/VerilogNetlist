@@ -15,13 +15,10 @@
 
 namespace hdl::tcl {
 
-// Forward decl
-class Console;
-
-// Public, namespace-level selection types
+// Public, namespace-level selection types (interned via IdString)
 struct SelRef {
-    IdString mSpecKey; // library specialization key
-    IdString mName;    // port/wire name
+    IdString mSpecKey; // library specialization key (interned)
+    IdString mName;    // port/wire name (interned)
 };
 
 struct Selection {
@@ -102,7 +99,7 @@ class Console {
   public:
     using Args = std::vector<std::string>;
 
-    // Use function pointers for clarity and to avoid capturing lambdas.
+    // Function-pointer based handlers to avoid capturing lambdas in the core
     using Handler = int (*)(Console&, Tcl_Interp*, const Args&);
     using Completer = std::vector<std::string> (*)(Console&, const Args&);
     using ReverseBuilder =
@@ -111,7 +108,7 @@ class Console {
 
     struct Subcmd {
         std::string mName;
-        std::string mHelp;
+        std::string mHelp; // one-line description (include usage if you wish)
         Handler mHandler = nullptr;
         Completer mCompleter = nullptr;
         ReverseBuilder mReverse = nullptr;
@@ -137,8 +134,6 @@ class Console {
     void registerCommand(const std::string& name, const std::string& help,
                          Handler handler, Completer completer = nullptr,
                          ReverseBuilder reverse = nullptr);
-    // Register all built-in commands
-    void registerAllBuiltins();
 
     // Lookup and reverse-plan API (used by invert command)
     bool hasCommand(const std::string& name) const;
@@ -146,7 +141,12 @@ class Console {
                                                 const Args& args,
                                                 const Selection& preSel) const;
 
-    // Helpers (public so command files can reuse them)
+    // NEW: public registry queries for help/commands
+    std::vector<std::pair<std::string, std::string>>
+    listCommands() const; // (name, help)
+    bool getCommandHelp(const std::string& name, std::string& outHelp) const;
+
+    // Utilities (public so command files can reuse them)
     static std::string makeCmdLine(const std::string& sub, const Args& args);
     static std::unordered_map<IdString, int64_t, IdString::Hash>
     parseParamTokens(const std::vector<std::string>& toks, size_t startIdx,
@@ -179,7 +179,7 @@ class Console {
     bool resolveWireName(const elab::ModuleSpec& spec, const std::string& tok,
                          IdString& out) const;
 
-    // Undo/Redo entry points (used by cmd_undo/cmd_redo)
+    // Undo/Redo entry points
     int doUndo(Tcl_Interp* ip);
     int doRedo(Tcl_Interp* ip);
 
@@ -190,9 +190,12 @@ class Console {
     elab::ModuleLibrary& lib() { return mLib; }
     const elab::ASTIndex& astIndex() const { return mAstIndex; }
 
+    // Register all built-in commands (implemented in
+    // src/tcl/pass/register_all.cpp)
+    void registerAllBuiltins();
 #ifdef HDL_HAVE_READLINE
     static char** complt(const char* text, int start, int end);
-    static Console* msCompletionSelf;
+    static Console* s_completion_self;
 #endif
 
   private:

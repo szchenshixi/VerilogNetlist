@@ -1,3 +1,5 @@
+#include "hdl/tcl/console.hpp"
+
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -8,12 +10,13 @@
 #include <readline/readline.h>
 #endif
 
-#include "cmd/register_all.hpp"
 #include "hdl/ast/decl.hpp"
 #include "hdl/elab/elaborate.hpp"
 #include "hdl/elab/spec.hpp"
 #include "hdl/hier/instance.hpp"
-#include "hdl/tcl/console.hpp"
+
+// Register-all header (local to src tree)
+#include "cmd/register_all.hpp"
 
 namespace hdl::tcl {
 
@@ -62,13 +65,13 @@ bool Console::init() {
     return true;
 }
 
+void Console::registerAllBuiltins() { register_all_commands(*this); }
+
 void Console::registerCommand(const std::string& name, const std::string& help,
                               Handler handler, Completer completer,
                               ReverseBuilder reverse) {
     mSubcmds[name] = Subcmd{name, help, handler, completer, reverse};
 }
-
-void Console::registerAllBuiltins() { register_all_commands(*this); }
 
 bool Console::hasCommand(const std::string& name) const {
     return mSubcmds.find(name) != mSubcmds.end();
@@ -79,7 +82,29 @@ Console::computeReversePlan(const std::string& sub, const Args& args,
                             const Selection& preSel) const {
     auto it = mSubcmds.find(sub);
     if (it == mSubcmds.end() || !it->second.mReverse) return {};
+    // const_cast to allow ReverseBuilder signature receiving Console&
     return it->second.mReverse(const_cast<Console&>(*this), sub, args, preSel);
+}
+
+// NEW: list commands and get help by name
+std::vector<std::pair<std::string, std::string>>
+Console::listCommands() const {
+    std::vector<std::pair<std::string, std::string>> out;
+    out.reserve(mSubcmds.size());
+    for (const auto& kv : mSubcmds)
+        out.emplace_back(kv.first, kv.second.mHelp);
+    std::sort(out.begin(), out.end(), [](const auto& a, const auto& b) {
+        return a.first < b.first;
+    });
+    return out;
+}
+
+bool Console::getCommandHelp(const std::string& name,
+                             std::string& outHelp) const {
+    auto it = mSubcmds.find(name);
+    if (it == mSubcmds.end()) return false;
+    outHelp = it->second.mHelp;
+    return true;
 }
 
 int Console::evalLine(const std::string& line) {
@@ -96,11 +121,10 @@ int Console::evalLine(const std::string& line) {
 }
 
 #ifdef HDL_HAVE_READLINE
-Console* Console::msCompletionSelf = nullptr;
-
+Console* Console::s_completion_self = nullptr;
 char** Console::complt(const char* text, int start, int end) {
     (void)end;
-    Console* self = msCompletionSelf;
+    Console* self = s_completion_self;
     if (!self) return nullptr;
 
     std::string buf(rl_line_buffer ? rl_line_buffer : "");
@@ -127,13 +151,11 @@ char** Console::complt(const char* text, int start, int end) {
 
 int Console::repl() {
 #ifdef HDL_HAVE_READLINE
-    Console::msCompletionSelf = this;
+    Console::s_completion_self = this;
     rl_attempted_completion_function = &Console::complt;
 #endif
-
     mDiag << "HDL Tcl console. Type: hdl help\n";
     mDiag << "Press Ctrl+D to exit.\n";
-
     while (true) {
 #ifdef HDL_HAVE_READLINE
         char* line = readline("> ");
@@ -153,7 +175,6 @@ int Console::repl() {
         (void)evalLine(s);
 #endif
     }
-
     mDiag << "Bye.\n";
     return 0;
 }
@@ -176,8 +197,16 @@ int Console::dispatch(Tcl_Interp* interp, const Args& argv) {
     if (argv.size() == 1) {
         std::ostringstream oss;
         oss << "hdl subcommands:\n";
-        for (auto& kv : mSubcmds)
-            oss << "  " << kv.first << " - " << kv.second.mHelp << "\n";
+        auto list = listCommands();
+        size_t w = 0;
+        for (auto& p : list)
+            w = std::max(w, p.first.size());
+        for (auto& p : list) {
+            oss << "  " << p.first;
+            if (p.first.size() < w)
+                oss << std::string(w - p.first.size(), ' ');
+            oss << " - " << p.second << "\n";
+        }
         Tcl_SetObjResult(interp, Tcl_NewStringObj(oss.str().c_str(), -1));
         return TCL_OK;
     }
@@ -248,11 +277,8 @@ Console::completeSubcommand(const std::string& prefix) const {
 std::string Console::makeCmdLine(const std::string& sub, const Args& args) {
     std::ostringstream oss;
     oss << "hdl " << sub;
-    if (!args.empty()) {
-        for (size_t i = 0; i < args.size(); ++i) {
-            oss << (i ? " " : " ") << args[i];
-        }
-    }
+    for (size_t i = 0; i < args.size(); ++i)
+        oss << ' ' << args[i];
     return oss.str();
 }
 
