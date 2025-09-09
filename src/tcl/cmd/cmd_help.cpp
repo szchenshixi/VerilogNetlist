@@ -26,7 +26,7 @@ static size_t lev(const std::string& a, const std::string& b) {
 static void render_list(Console& c, Tcl_Interp* ip) {
     auto list = c.listCommands();
     std::ostringstream oss;
-    oss << "hdl subcommands:\n";
+    oss << "commands:\n";
     size_t w = 0;
     for (auto& p : list)
         w = std::max(w, p.first.size());
@@ -87,13 +87,13 @@ static int cmd_help(Console& c, Tcl_Interp* ip, const Console::Args& a) {
 
 static std::vector<std::string> compl_help(Console& c,
                                            const Console::Args& toks) {
-    // tokens: ["hdl","help","<partial>"]
-    if (toks.size() != 3) return {};
+    // tokens: [help","<partial>"]
+    if (toks.size() != 2) return {};
     std::vector<std::string> names;
     for (auto& p : c.listCommands())
         names.push_back(p.first);
     std::vector<std::string> out;
-    const std::string pref = toks[2];
+    const std::string pref = toks[1];
     for (auto& n : names)
         if (pref.empty() || n.rfind(pref, 0) == 0) out.push_back(n);
     std::sort(out.begin(), out.end());
@@ -108,10 +108,10 @@ static int cmd_commands(Console& c, Tcl_Interp* ip, const Console::Args&) {
 namespace hdl::tcl {
 void register_cmd_help(Console& c) {
     c.registerCommand("help",
-                      "Show help or help for a subcommand: hdl help [name]",
+                      "Show help or help for a command: help [name]",
                       &cmd_help,
                       &compl_help);
     c.registerCommand(
-      "commands", "List subcommands with one-line help", &cmd_commands);
+      "commands", "List commands with one-line help", &cmd_commands);
 }
 } // namespace hdl::tcl

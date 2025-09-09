@@ -10,8 +10,7 @@ static int cmd_select_wire(Console& c, Tcl_Interp* ip,
     if (a.empty()) {
         Tcl_SetObjResult(
           ip,
-          Tcl_NewStringObj("usage: hdl select-wire <name|index> [specKey]",
-                           -1));
+          Tcl_NewStringObj("usage: select-wire <name|index> [specKey]", -1));
         return TCL_ERROR;
     }
     hdl::IdString key =
@@ -37,10 +36,15 @@ static int cmd_select_wire(Console& c, Tcl_Interp* ip,
 }
 static std::vector<std::string> compl_select_wire(Console& c,
                                                   const Console::Args& toks) {
-    if (toks.size() >= 4) return c.completeWiresForKey(toks[3], toks[2]);
-    std::string key = c.selection().mPrimaryKey.str();
-    if (key.empty()) return c.completeSpecKeys(toks.back());
-    return c.completeWiresForKey(key, (toks.size() >= 3) ? toks[2] : "");
+    // tokens: ["select-wire", "<namePartial>", "[specKey]"]
+    if (toks.size() <= 2) {
+        std::string key = c.selection().mPrimaryKey.str();
+        if (key.empty())
+            return c.completeSpecKeys(toks.size() == 2 ? toks[1] : "");
+        return c.completeWiresForKey(key, toks.size() == 2 ? toks[1] : "");
+    }
+    if (toks.size() == 3) { return c.completeSpecKeys(toks[2]); }
+    return {};
 }
 static std::vector<std::string> rev_select_wire(Console& c, const std::string&,
                                                 const Console::Args& a,
@@ -61,7 +65,7 @@ static std::vector<std::string> rev_select_wire(Console& c, const std::string&,
             break;
         }
     if (!was)
-        inv.push_back("hdl unselect-wire " + wname.str() + " " + key.str());
+        inv.push_back("unselect-wire " + wname.str() + " " + key.str());
     return inv;
 }
 
@@ -70,7 +74,7 @@ static int cmd_unselect_wire(Console& c, Tcl_Interp* ip,
     if (a.empty()) {
         Tcl_SetObjResult(
           ip,
-          Tcl_NewStringObj("usage: hdl unselect-wire <name|index> [specKey]",
+          Tcl_NewStringObj("usage: unselect-wire <name|index> [specKey]",
                            -1));
         return TCL_ERROR;
     }
@@ -106,7 +110,7 @@ static std::vector<std::string> rev_unselect_wire(Console& c,
     if (!c.resolveWireName(*s, a[0], wname)) return inv;
     for (auto& r : pre.mWires)
         if (r.mSpecKey == key && r.mName == wname) {
-            inv.push_back("hdl select-wire " + wname.str() + " " + key.str());
+            inv.push_back("select-wire " + wname.str() + " " + key.str());
             break;
         }
     return inv;
@@ -135,16 +139,16 @@ static int cmd_list_wires(Console& c, Tcl_Interp* ip, const Console::Args&) {
 namespace hdl::tcl {
 void register_cmd_wires(Console& c) {
     c.registerCommand("select-wire",
-                      "Select a wire",
+                      "Select a wire: select-wire <name|index> [specKey]",
                       &cmd_select_wire,
                       &compl_select_wire,
                       &rev_select_wire);
     c.registerCommand("unselect-wire",
-                      "Unselect a wire",
+                      "Unselect a wire: unselect-wire <name|index> [specKey]",
                       &cmd_unselect_wire,
                       nullptr,
                       &rev_unselect_wire);
     c.registerCommand(
-      "list-wires", "List wires of selected modules", &cmd_list_wires);
+      "list-wires", "List wires of selected modules: list-wires", &cmd_list_wires);
 }
 } // namespace hdl::tcl

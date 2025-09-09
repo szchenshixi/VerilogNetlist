@@ -6,8 +6,7 @@ using hdl::tcl::Selection;
 static int cmd_elab(Console& c, Tcl_Interp* ip, const Console::Args& a) {
     if (a.empty()) {
         Tcl_SetObjResult(
-          ip,
-          Tcl_NewStringObj("usage: hdl elab <name> [PARAM=VALUE ...]", -1));
+          ip, Tcl_NewStringObj("usage: elab <name> [PARAM=VALUE ...]", -1));
         return TCL_ERROR;
     }
     hdl::IdString name(a[0]);
@@ -32,31 +31,31 @@ static std::vector<std::string> rev_elab(Console& c, const std::string&,
     hdl::IdString name(args[0]);
     auto env = Console::parseParamTokens(args, 1, std::cerr);
     hdl::IdString key(hdl::elab::makeModuleKey(name.str(), env));
-    if (!pre.hasModuleKey(key))
-        inv.push_back("hdl unselect-module " + key.str());
+    if (!pre.hasModuleKey(key)) inv.push_back("unselect-module " + key.str());
     if (!(pre.mPrimaryKey == hdl::IdString()))
-        inv.push_back("hdl set-primary " + pre.mPrimaryKey.str());
+        inv.push_back("set-primary " + pre.mPrimaryKey.str());
     return inv;
 }
 
 static std::vector<std::string> compl_elab(Console& c,
                                            const Console::Args& toks) {
-    if (toks.size() <= 3) {
-        std::string pref = toks.size() >= 3 ? toks[2] : "";
+    // tokens: ["elab", "<modulePartial>", "PARAM=...", ...]
+    if (toks.size() <= 2) {
+        std::string pref = toks.size() >= 2 ? toks[1] : "";
         return c.completeModules(pref);
     }
-    hdl::IdString modName(toks[2]);
+    hdl::IdString modName(toks[1]);
     std::string last = toks.back();
     return c.completeParams(modName, last);
 }
 
 namespace hdl::tcl {
 void register_cmd_elab(Console& c) {
-    c.registerCommand(
-      "elab",
-      "Elaborate module specialization and select it as primary",
-      &cmd_elab,
-      &compl_elab,
-      &rev_elab);
+    c.registerCommand("elab",
+                      "Elaborate module specialization and select it as "
+                      "primary: elab <name> [PARAM=VALUE ...]",
+                      &cmd_elab,
+                      &compl_elab,
+                      &rev_elab);
 }
 } // namespace hdl::tcl

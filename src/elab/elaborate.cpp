@@ -103,7 +103,7 @@ static net::BitId toBitId(const ModuleSpec& spec, const BitAtom& a) {
         return spec.mBitMap.portBit(static_cast<uint32_t>(idx), a.mBitIndex);
     }
     if (a.mKind == BitAtomKind::WireBit) {
-        int idx = spec.findPortIndex(a.mOwnerIndex);
+        int idx = spec.findWireIndex(a.mOwnerIndex);
         if (idx < 0) return UINT32_MAX;
         return spec.mBitMap.wireBit(static_cast<uint32_t>(idx), a.mBitIndex);
     }

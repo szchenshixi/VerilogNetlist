@@ -29,8 +29,8 @@ FetchContent_Declare(
     SYSTEM
     GIT_REPOSITORY https://github.com/CLIUtils/CLI11
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/CLI11
-    # GIT_TAG v2.3.2
-    GIT_TAG main
+    GIT_TAG v2.3.2
+    # GIT_TAG main
     GIT_SHALLOW ON)
 # -------------------------------------------------------------------
 # plog
@@ -77,7 +77,7 @@ find_package(TCL REQUIRED)
 
 option(HDL_USE_READLINE "Enable GNU Readline for the Tcl console" ON)
 if (HDL_USE_READLINE)
-#   find_package(Readline)
+#   find_package(Readline) # This doesn't work
   find_library(READLINE_LIBRARY readline)
   find_path(READLINE_INCLUDE_DIR readline/readline.h)
 endif()

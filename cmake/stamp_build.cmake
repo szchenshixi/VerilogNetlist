@@ -1,11 +1,11 @@
 # Get the current date and time
-string(TIMESTAMP SMART_SPLIT_BUILD_DATE "%Y-%m-%d %H:%M:%S")
+string(TIMESTAMP INTER_EXTRACT_BUILD_DATE "%Y-%m-%d %H:%M:%S")
 
 # Get the current Git commit has
 execute_process(
     COMMAND git rev-parse HEAD
     WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-    OUTPUT_VARIABLE SMART_SPLIT_GIT_COMMIT_HASH
+    OUTPUT_VARIABLE INTER_EXTRACT_GIT_COMMIT_HASH
     ERROR_QUIET
     OUTPUT_STRIP_TRAILING_WHITESPACE
 )

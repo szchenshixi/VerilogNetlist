@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstring>
+#include <set>
 #include <sstream>
 
 #ifdef HDL_HAVE_READLINE
@@ -46,7 +47,6 @@ Console::Console(elab::ModuleLibrary& lib, const elab::ASTIndex& astIndex,
 
 Console::~Console() {
     if (mInterp) {
-        Tcl_DeleteCommand(mInterp, "hdl");
         Tcl_DeleteInterp(mInterp);
         mInterp = nullptr;
     }
@@ -60,7 +60,6 @@ bool Console::init() {
               << "\n";
         return false;
     }
-    Tcl_CreateObjCommand(mInterp, "hdl", &Console::TclHdl, this, nullptr);
     registerAllBuiltins();
     return true;
 }
@@ -71,6 +70,9 @@ void Console::registerCommand(const std::string& name, const std::string& help,
                               Handler handler, Completer completer,
                               ReverseBuilder reverse) {
     mSubcmds[name] = Subcmd{name, help, handler, completer, reverse};
+    // Create a top-level Tcl command
+    Tcl_CreateObjCommand(
+      mInterp, name.c_str(), &Console::TclCmd, this, nullptr);
 }
 
 bool Console::hasCommand(const std::string& name) const {
@@ -154,7 +156,7 @@ int Console::repl() {
     Console::s_completion_self = this;
     rl_attempted_completion_function = &Console::complt;
 #endif
-    mDiag << "HDL Tcl console. Type: hdl help\n";
+    mDiag << "HDL Tcl console. Type: help\n";
     mDiag << "Press Ctrl+D to exit.\n";
     while (true) {
 #ifdef HDL_HAVE_READLINE
@@ -179,52 +181,34 @@ int Console::repl() {
     return 0;
 }
 
-int Console::TclHdl(ClientData cd, Tcl_Interp* interp, int objc,
+int Console::TclCmd(ClientData cd, Tcl_Interp* interp, int objc,
                     Tcl_Obj* const objv[]) {
     auto* self = reinterpret_cast<Console*>(cd);
     if (!self) return TCL_ERROR;
-    auto argv = toArgs(objc, objv);
-    if (argv.size() < 1) {
-        Tcl_SetObjResult(
-          interp,
-          Tcl_NewStringObj("internal error: missing command name", -1));
-        return TCL_ERROR;
-    }
-    return self->dispatch(interp, argv);
+    if (objc < 1) return TCL_ERROR;
+    std::string cmdName = toStd(objv[0]);
+    Args args;
+    args.reserve((size_t)std::max(0, objc - 1));
+    for (int i = 1; i < objc; ++i)
+        args.push_back(toStd(objv[i]));
+    return self->dispatchCommand(interp, cmdName, args);
 }
 
-int Console::dispatch(Tcl_Interp* interp, const Args& argv) {
-    if (argv.size() == 1) {
-        std::ostringstream oss;
-        oss << "hdl subcommands:\n";
-        auto list = listCommands();
-        size_t w = 0;
-        for (auto& p : list)
-            w = std::max(w, p.first.size());
-        for (auto& p : list) {
-            oss << "  " << p.first;
-            if (p.first.size() < w)
-                oss << std::string(w - p.first.size(), ' ');
-            oss << " - " << p.second << "\n";
-        }
-        Tcl_SetObjResult(interp, Tcl_NewStringObj(oss.str().c_str(), -1));
-        return TCL_OK;
-    }
-    const std::string& sub = argv[1];
-    auto it = mSubcmds.find(sub);
+int Console::dispatchCommand(Tcl_Interp* interp, const std::string& cmdName,
+                             const Args& args) {
+    auto it = mSubcmds.find(cmdName);
     if (it == mSubcmds.end()) {
-        std::string msg = "unknown subcommand: " + sub;
+        std::string msg = "unknown command: " + cmdName;
         Tcl_SetObjResult(interp, Tcl_NewStringObj(msg.c_str(), -1));
         return TCL_ERROR;
     }
-    Args args(argv.begin() + 2, argv.end());
     Selection preSel = mSel; // snapshot for reverse-builder
     int code = it->second.mHandler ? it->second.mHandler(*this, interp, args)
                                    : TCL_ERROR;
     if (code == TCL_OK && !mInReplay && it->second.mReverse) {
-        auto undoCmds = it->second.mReverse(*this, sub, args, preSel);
+        auto undoCmds = it->second.mReverse(*this, cmdName, args, preSel);
         if (!undoCmds.empty()) {
-            recordUndo(makeCmdLine(sub, args), undoCmds, sub);
+            recordUndo(makeCmdLine(cmdName, args), undoCmds, cmdName);
         }
     }
     return code;
@@ -245,24 +229,47 @@ Console::Args Console::toArgs(int objc, Tcl_Obj* const objv[]) {
 
 std::vector<std::string> Console::complete(const std::string& line,
                                            size_t cursorPos) {
+    // (void)cursorPos;
+    // auto toks = split_words(line);
+    // if (toks.empty()) return {"hdl"};
+    // if (toks[0] != "hdl") {
+    //     if (toks.size() == 1 && starts_with("hdl", toks[0])) return {"hdl"};
+    //     return {};
+    // }
+    // if (toks.size() == 1) return completeSubcommand("");
+    // if (toks.size() == 2) return completeSubcommand(toks[1]);
+    // const std::string& sub = toks[1];
+    // auto it = mSubcmds.find(sub);
+    // if (it != mSubcmds.end() && it->second.mCompleter)
+    //     return it->second.mCompleter(*this, toks);
+    // return {};
     (void)cursorPos;
     auto toks = split_words(line);
-    if (toks.empty()) return {"hdl"};
-    if (toks[0] != "hdl") {
-        if (toks.size() == 1 && starts_with("hdl", toks[0])) return {"hdl"};
-        return {};
-    }
-    if (toks.size() == 1) return completeSubcommand("");
-    if (toks.size() == 2) return completeSubcommand(toks[1]);
-    const std::string& sub = toks[1];
-    auto it = mSubcmds.find(sub);
+    const bool endsSpace = (!line.empty() && std::isspace(line.back()));
+    if (endsSpace) toks.push_back("");
+
+    auto sortUnique = [](std::vector<std::string> v) {
+        std::sort(v.begin(), v.end());
+        v.erase(std::unique(v.begin(), v.end()), v.end());
+        return v;
+    };
+
+    // At empty prompt -> list all commands
+    if (toks.empty()) return completeCommandNames("");
+
+    // Completing the command name
+    if (toks.size() == 1) return completeCommandNames(toks[0]);
+
+    // Command args: delegate to that command's completer
+    const std::string& cmd = toks[0];
+    auto it = mSubcmds.find(cmd);
     if (it != mSubcmds.end() && it->second.mCompleter)
         return it->second.mCompleter(*this, toks);
     return {};
 }
 
 std::vector<std::string>
-Console::completeSubcommand(const std::string& prefix) const {
+Console::completeCommandNames(const std::string& prefix) const {
     std::vector<std::string> r;
     r.reserve(mSubcmds.size());
     for (auto& kv : mSubcmds)
@@ -276,7 +283,7 @@ Console::completeSubcommand(const std::string& prefix) const {
 
 std::string Console::makeCmdLine(const std::string& sub, const Args& args) {
     std::ostringstream oss;
-    oss << "hdl " << sub;
+    oss << sub;
     for (size_t i = 0; i < args.size(); ++i)
         oss << ' ' << args[i];
     return oss.str();

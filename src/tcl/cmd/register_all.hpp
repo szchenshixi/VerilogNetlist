@@ -1,5 +1,6 @@
 #pragma once
 #include "hdl/tcl/console.hpp"
+#include "user/register_user.hpp"
 
 // Declarations of per-file registration
 namespace hdl::tcl {
@@ -17,4 +18,6 @@ void register_cmd_query(Console& c); // net-of/render-bit
 void register_cmd_undo(Console& c);  // undo/redo
 
 void register_all_commands(Console& c);
+// external user commands (stubbed by default; see src/tcl/cmd/user/)
+void register_user_commands(Console& c);
 } // namespace hdl::tcl

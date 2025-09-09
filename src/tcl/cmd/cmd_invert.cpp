@@ -8,7 +8,7 @@ using hdl::tcl::Selection;
 static int cmd_invert(Console& c, Tcl_Interp* ip, const Console::Args& a) {
     if (a.empty()) {
         Tcl_SetObjResult(
-          ip, Tcl_NewStringObj("usage: hdl invert <sub> [args...]", -1));
+          ip, Tcl_NewStringObj("usage: invert <sub> [args...]", -1));
         return TCL_ERROR;
     }
     std::string sub = a[0];

@@ -10,8 +10,7 @@ static int cmd_select_port(Console& c, Tcl_Interp* ip,
     if (a.empty()) {
         Tcl_SetObjResult(
           ip,
-          Tcl_NewStringObj("usage: hdl select-port <name|index> [specKey]",
-                           -1));
+          Tcl_NewStringObj("usage: select-port <name|index> [specKey]", -1));
         return TCL_ERROR;
     }
     hdl::IdString key =
@@ -37,10 +36,14 @@ static int cmd_select_port(Console& c, Tcl_Interp* ip,
 }
 static std::vector<std::string> compl_select_port(Console& c,
                                                   const Console::Args& toks) {
-    if (toks.size() >= 4) return c.completePortsForKey(toks[3], toks[2]);
-    std::string key = c.selection().mPrimaryKey.str();
-    if (key.empty()) return c.completeSpecKeys(toks.back());
-    return c.completePortsForKey(key, (toks.size() >= 3) ? toks[2] : "");
+    if (toks.size() <= 2) {
+        std::string key = c.selection().mPrimaryKey.str();
+        if (key.empty())
+            return c.completeSpecKeys(toks.size() == 2 ? toks[1] : "");
+        return c.completePortsForKey(key, toks.size() == 2 ? toks[1] : "");
+    }
+    if (toks.size() == 3) { return c.completeSpecKeys(toks[2]); }
+    return {};
 }
 static std::vector<std::string> rev_select_port(Console& c, const std::string&,
                                                 const Console::Args& a,
@@ -61,7 +64,7 @@ static std::vector<std::string> rev_select_port(Console& c, const std::string&,
             break;
         }
     if (!was)
-        inv.push_back("hdl unselect-port " + pname.str() + " " + key.str());
+        inv.push_back("unselect-port " + pname.str() + " " + key.str());
     return inv;
 }
 
@@ -70,7 +73,7 @@ static int cmd_unselect_port(Console& c, Tcl_Interp* ip,
     if (a.empty()) {
         Tcl_SetObjResult(
           ip,
-          Tcl_NewStringObj("usage: hdl unselect-port <name|index> [specKey]",
+          Tcl_NewStringObj("usage: unselect-port <name|index> [specKey]",
                            -1));
         return TCL_ERROR;
     }
@@ -106,7 +109,7 @@ static std::vector<std::string> rev_unselect_port(Console& c,
     if (!c.resolvePortName(*s, a[0], pname)) return inv;
     for (auto& r : pre.mPorts)
         if (r.mSpecKey == key && r.mName == pname) {
-            inv.push_back("hdl select-port " + pname.str() + " " + key.str());
+            inv.push_back("select-port " + pname.str() + " " + key.str());
             break;
         }
     return inv;
@@ -136,16 +139,16 @@ static int cmd_list_ports(Console& c, Tcl_Interp* ip, const Console::Args&) {
 namespace hdl::tcl {
 void register_cmd_ports(Console& c) {
     c.registerCommand("select-port",
-                      "Select a port",
+                      "Select a port: select-port <name|index> [specKey]",
                       &cmd_select_port,
                       &compl_select_port,
                       &rev_select_port);
     c.registerCommand("unselect-port",
-                      "Unselect a port",
+                      "Unselect a port: unselect-port <name|index> [specKey]",
                       &cmd_unselect_port,
                       nullptr,
                       &rev_unselect_port);
     c.registerCommand(
-      "list-ports", "List ports of selected modules", &cmd_list_ports);
+      "list-ports", "List ports of selected modules: list-ports", &cmd_list_ports);
 }
 } // namespace hdl::tcl

@@ -9,7 +9,7 @@ static int cmd_select_module(Console& c, Tcl_Interp* ip,
     if (a.empty()) {
         Tcl_SetObjResult(
           ip,
-          Tcl_NewStringObj("usage: hdl select-module <name> [PARAM=VALUE ...]",
+          Tcl_NewStringObj("usage: select-module <name> [PARAM=VALUE ...]",
                            -1));
         return TCL_ERROR;
     }
@@ -34,19 +34,19 @@ static std::vector<std::string> rev_select_module(Console& c,
     hdl::IdString name(a[0]);
     auto env = Console::parseParamTokens(a, 1, std::cerr);
     hdl::IdString key(hdl::elab::makeModuleKey(name.str(), env));
-    if (!pre.hasModuleKey(key))
-        inv.push_back("hdl unselect-module " + key.str());
+    if (!pre.hasModuleKey(key)) inv.push_back("unselect-module " + key.str());
     if (!(pre.mPrimaryKey == hdl::IdString()))
-        inv.push_back("hdl set-primary " + pre.mPrimaryKey.str());
+        inv.push_back("set-primary " + pre.mPrimaryKey.str());
     return inv;
 }
 static std::vector<std::string>
 compl_select_module(Console& c, const Console::Args& toks) {
-    if (toks.size() <= 3) {
-        std::string pref = toks.size() >= 3 ? toks[2] : "";
+    // tokens: ["select-module", "<modulePartial>", "PARAM=...", ...]
+    if (toks.size() <= 2) {
+        std::string pref = toks.size() >= 2 ? toks[1] : "";
         return c.completeModules(pref);
     }
-    hdl::IdString modName(toks[2]);
+    hdl::IdString modName(toks[1]);
     return c.completeParams(modName, toks.back());
 }
 
@@ -55,7 +55,7 @@ static int cmd_select_spec(Console& c, Tcl_Interp* ip,
                            const Console::Args& a) {
     if (a.size() != 1) {
         Tcl_SetObjResult(
-          ip, Tcl_NewStringObj("usage: hdl select-spec <specKey>", -1));
+          ip, Tcl_NewStringObj("usage: select-spec <specKey>", -1));
         return TCL_ERROR;
     }
     hdl::IdString key(a[0]);
@@ -75,14 +75,14 @@ static std::vector<std::string> rev_select_spec(Console&, const std::string&,
     if (a.size() != 1) return inv;
     hdl::IdString key(a[0]);
     if (!pre.hasModuleKey(key))
-        inv.push_back("hdl unselect-module " + key.str());
+        inv.push_back("unselect-module " + key.str());
     if (!(pre.mPrimaryKey == hdl::IdString()))
-        inv.push_back("hdl set-primary " + pre.mPrimaryKey.str());
+        inv.push_back("set-primary " + pre.mPrimaryKey.str());
     return inv;
 }
 static std::vector<std::string> compl_select_spec(Console& c,
                                                   const Console::Args& toks) {
-    std::string pref = toks.size() >= 3 ? toks[2] : "";
+    std::string pref = toks.size() >= 2 ? toks[1] : "";
     return c.completeSpecKeys(pref);
 }
 
@@ -91,7 +91,7 @@ static int cmd_set_primary(Console& c, Tcl_Interp* ip,
                            const Console::Args& a) {
     if (a.size() != 1) {
         Tcl_SetObjResult(
-          ip, Tcl_NewStringObj("usage: hdl set-primary <specKey>", -1));
+          ip, Tcl_NewStringObj("usage: set-primary <specKey>", -1));
         return TCL_ERROR;
     }
     hdl::IdString key(a[0]);
@@ -114,7 +114,7 @@ static std::vector<std::string> rev_set_primary(Console&, const std::string&,
 }
 static std::vector<std::string> compl_set_primary(Console& c,
                                                   const Console::Args& toks) {
-    std::string pref = toks.size() >= 3 ? toks[2] : "";
+    std::string pref = toks.size() >= 2 ? toks[1] : "";
     return c.completeSpecKeys(pref);
 }
 
@@ -123,7 +123,7 @@ static int cmd_unselect_module(Console& c, Tcl_Interp* ip,
                                const Console::Args& a) {
     if (a.size() != 1) {
         Tcl_SetObjResult(
-          ip, Tcl_NewStringObj("usage: hdl unselect-module <specKey>", -1));
+          ip, Tcl_NewStringObj("usage: unselect-module <specKey>", -1));
         return TCL_ERROR;
     }
     hdl::IdString key(a[0]);
@@ -142,44 +142,44 @@ static std::vector<std::string> rev_unselect_module(Console& c,
     std::vector<std::string> inv;
     if (a.size() != 1) return inv;
     hdl::IdString key(a[0]);
-    inv.push_back("hdl select-spec " + key.str());
+    inv.push_back("select-spec " + key.str());
     for (auto& r : pre.mPorts)
         if (r.mSpecKey == key)
-            inv.push_back("hdl select-port " + r.mName.str() + " " +
+            inv.push_back("select-port " + r.mName.str() + " " +
                           key.str());
     for (auto& r : pre.mWires)
         if (r.mSpecKey == key)
-            inv.push_back("hdl select-wire " + r.mName.str() + " " +
+            inv.push_back("select-wire " + r.mName.str() + " " +
                           key.str());
     if (!(pre.mPrimaryKey == hdl::IdString()))
-        inv.push_back("hdl set-primary " + pre.mPrimaryKey.str());
+        inv.push_back("set-primary " + pre.mPrimaryKey.str());
     return inv;
 }
 static std::vector<std::string>
 compl_unselect_module(Console& c, const Console::Args& toks) {
-    std::string pref = toks.size() >= 3 ? toks[2] : "";
+    std::string pref = toks.size() >= 2 ? toks[1] : "";
     return c.completeSpecKeys(pref);
 }
 
 namespace hdl::tcl {
 void register_cmd_select(Console& c) {
     c.registerCommand("select-module",
-                      "Add specialization by module+params and set primary",
+                      "Add specialization by module+params and set primary: select-module <name> [PARAM=VALUE ...]",
                       &cmd_select_module,
                       &compl_select_module,
                       &rev_select_module);
     c.registerCommand("select-spec",
-                      "Add specialization by specKey and set primary",
+                      "Add specialization by specKey and set primary: select-spec <specKey>",
                       &cmd_select_spec,
                       &compl_select_spec,
                       &rev_select_spec);
     c.registerCommand("set-primary",
-                      "Set the primary module context",
+                      "Set the primary module context: set-primary <specKey>",
                       &cmd_set_primary,
                       &compl_set_primary,
                       &rev_set_primary);
     c.registerCommand("unselect-module",
-                      "Remove specialization from selection",
+                      "Remove specialization from selection: unselect-module <specKey>",
                       &cmd_unselect_module,
                       &compl_unselect_module,
                       &rev_unselect_module);

@@ -56,13 +56,13 @@ static int cmd_dump_hierarchy(Console& c, Tcl_Interp* ip,
 namespace hdl::tcl {
 void register_cmd_dump(Console& c) {
     c.registerCommand("dump-layout",
-                      "Print port/wire layout for selected modules",
+                      "Print port/wire layout for selected modules: dump-layout",
                       &cmd_dump_layout);
     c.registerCommand("dump-connectivity",
-                      "Print connectivity groups for selected modules",
+                      "Print connectivity groups for selected modules: dump-connectivity",
                       &cmd_dump_connectivity);
     c.registerCommand("dump-hierarchy",
-                      "Print instance hierarchy for selected modules",
+                      "Print instance hierarchy for selected modules: dump-hierarchy",
                       &cmd_dump_hierarchy);
 }
 } // namespace hdl::tcl

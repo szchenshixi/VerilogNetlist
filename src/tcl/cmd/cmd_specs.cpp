@@ -23,8 +23,8 @@ static int cmd_specs(Console& c, Tcl_Interp* ip, const Console::Args&) {
 
 namespace hdl::tcl {
 void register_cmd_specs(Console& c) {
-    c.registerCommand("modules", "List AST modules", &cmd_modules);
+    c.registerCommand("modules", "List AST modules: modules", &cmd_modules);
     c.registerCommand(
-      "specs", "List elaborated ModuleSpecs in library", &cmd_specs);
+      "specs", "List elaborated ModuleSpecs in library: specs", &cmd_specs);
 }
 } // namespace hdl::tcl

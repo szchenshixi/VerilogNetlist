@@ -11,7 +11,7 @@ static int cmd_redo(Console& c, Tcl_Interp* ip, const Console::Args&) {
 
 namespace hdl::tcl {
 void register_cmd_undo(Console& c) {
-    c.registerCommand("undo", "Undo last command (if undoable)", &cmd_undo);
-    c.registerCommand("redo", "Redo last undone command", &cmd_redo);
+    c.registerCommand("undo", "Undo last command (if undoable): undo", &cmd_undo);
+    c.registerCommand("redo", "Redo last undone command: redo", &cmd_redo);
 }
 } // namespace hdl::tcl

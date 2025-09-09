@@ -15,7 +15,7 @@ static int cmd_net_of(Console& c, Tcl_Interp* ip, const Console::Args& a) {
         Tcl_SetObjResult(
           ip,
           Tcl_NewStringObj(
-            "usage: hdl net-of [specKey] <port|wire> <name> <bitOff>", -1));
+            "usage: net-of [specKey] <port|wire> <name> <bitOff>", -1));
         return TCL_ERROR;
     }
     if (key == hdl::IdString()) {
@@ -65,7 +65,7 @@ static int cmd_render_bit(Console& c, Tcl_Interp* ip, const Console::Args& a) {
         idx = 0;
     } else {
         Tcl_SetObjResult(
-          ip, Tcl_NewStringObj("usage: hdl render-bit [specKey] <bitId>", -1));
+          ip, Tcl_NewStringObj("usage: render-bit [specKey] <bitId>", -1));
         return TCL_ERROR;
     }
     auto* s = c.getSpecByKey(key);
@@ -89,11 +89,11 @@ namespace hdl::tcl {
 void register_cmd_query(Console& c) {
     c.registerCommand(
       "net-of",
-      "Return NetId: hdl net-of [specKey] <port|wire> <name> <bitOff>",
+      "Return NetId: net-of [specKey] <port|wire> <name> <bitOff>",
       &cmd_net_of);
     c.registerCommand(
       "render-bit",
-      "Render a bit owner label: hdl render-bit [specKey] <bitId>",
+      "Render a bit owner label: render-bit [specKey] <bitId>",
       &cmd_render_bit);
 }
 }

@@ -74,8 +74,15 @@ int main() {
         std::cerr << "Failed to init Tcl console\n";
         return 1;
     }
-    // Select Top by default
-    console.selection().mModuleKeys.push_back(specTop.mName);
+
+    // Build the specialization key for Top with defaults so Console can find
+    auto topEnv = std::unordered_map<IdString, int64_t, IdString::Hash>{
+      {DO_EXTRA, 1}, {REPL, 2}};
+    IdString topKey(elab::makeModuleKey(Top.str(), topEnv));
+    if (console.getSpecByKey(topKey)) {
+        console.selection().mModuleKeys.push_back(topKey);
+        console.selection().mPrimaryKey = topKey;
+    }
 
     return console.repl();
 }

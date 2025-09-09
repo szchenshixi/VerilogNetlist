@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <ostream>
@@ -130,7 +131,7 @@ class Console {
     int repl();
     int evalLine(const std::string& line);
 
-    // Registration API
+    // Registration API: registers a top-level Tcl command with name.
     void registerCommand(const std::string& name, const std::string& help,
                          Handler handler, Completer completer = nullptr,
                          ReverseBuilder reverse = nullptr);
@@ -191,7 +192,7 @@ class Console {
     const elab::ASTIndex& astIndex() const { return mAstIndex; }
 
     // Register all built-in commands (implemented in
-    // src/tcl/pass/register_all.cpp)
+    // src/tcl/cmd/register_all.cpp)
     void registerAllBuiltins();
 #ifdef HDL_HAVE_READLINE
     static char** complt(const char* text, int start, int end);
@@ -199,17 +200,18 @@ class Console {
 #endif
 
   private:
-    // Tcl entrypoint and core dispatch
-    static int TclHdl(ClientData cd, Tcl_Interp* interp, int objc,
+    // Tcl entrypoint for all top-level commands
+    static int TclCmd(ClientData cd, Tcl_Interp* interp, int objc,
                       Tcl_Obj* const objv[]);
-    int dispatch(Tcl_Interp* interp, const Args& argv);
+    int dispatchCommand(Tcl_Interp* interp, const std::string& cmdName,
+                        const Args& args);
 
     static std::string toStd(Tcl_Obj* obj);
     static Args toArgs(int objc, Tcl_Obj* const objv[]);
     std::vector<std::string> complete(const std::string& line,
                                       size_t cursorPos);
     std::vector<std::string>
-    completeSubcommand(const std::string& prefix) const;
+    completeCommandNames(const std::string& prefix) const;
 
     // Record an undo entry
     void recordUndo(const std::string& redoCmd,
