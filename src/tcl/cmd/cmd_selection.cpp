@@ -1,5 +1,5 @@
-#include <algorithm>
 #include <sstream>
+#include <algorithm>
 
 #include "hdl/tcl/console.hpp"
 
@@ -63,7 +63,7 @@ static int cmd_selection(Console& c, Tcl_Interp* ip, const Console::Args& a) {
         return TCL_OK;
     }
     Tcl_SetObjResult(
-      ip, Tcl_NewStringObj("usage: selection show|summary|clear", -1));
+      ip, Tcl_NewStringObj("usage: hdl selection show|summary|clear", -1));
     return TCL_ERROR;
 }
 
@@ -72,25 +72,26 @@ static std::vector<std::string> rev_selection(Console&, const std::string&,
                                               const Selection& pre) {
     std::vector<std::string> inv;
     for (auto& k : pre.mModuleKeys)
-        inv.push_back("select-spec " + k.str());
+        inv.push_back("hdl select-spec " + k.str());
     for (auto& r : pre.mPorts)
-        inv.push_back("select-port " + r.mName.str() + " " + r.mSpecKey.str());
+        inv.push_back("hdl select-port " + r.mName.str() + " " +
+                      r.mSpecKey.str());
     for (auto& r : pre.mWires)
-        inv.push_back("select-wire " + r.mName.str() + " " + r.mSpecKey.str());
+        inv.push_back("hdl select-wire " + r.mName.str() + " " +
+                      r.mSpecKey.str());
     if (!(pre.mPrimaryKey == hdl::IdString()))
-        inv.push_back("set-primary " + pre.mPrimaryKey.str());
+        inv.push_back("hdl set-primary " + pre.mPrimaryKey.str());
     return inv;
 }
 
-// Completion for selection sub-options
-static std::vector<std::string> compl_selection(Console&,
-                                                const Console::Args& toks) {
-    // tokens: ["selection","<partial>"]
+// Completion: selection sub-options
+static std::vector<std::string> compl_selection(Console&, const Console::Args& toks) {
+    // tokens like: ["hdl","selection","<partial>"]
     std::vector<std::string> opts = {"show", "summary", "clear"};
-    if (toks.empty()) return opts;
-    if (toks.size() == 1) return opts;
+    if (toks.size() < 2) return {};
+    std::string pref;
+    if (toks.size() >= 3) pref = toks[2];
     std::vector<std::string> out;
-    std::string pref = toks[1];
     for (const auto& s : opts) {
         if (pref.empty() || s.rfind(pref, 0) == 0) out.push_back(s);
     }
@@ -102,7 +103,7 @@ static std::vector<std::string> compl_selection(Console&,
 namespace hdl::tcl {
 void register_cmd_selection(Console& c) {
     c.registerCommand("selection",
-                      "Selection management: selection show|summary|clear",
+                      "Selection management: show|summary|clear",
                       &cmd_selection,
                       &compl_selection,
                       &rev_selection);

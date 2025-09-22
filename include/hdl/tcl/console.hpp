@@ -196,6 +196,7 @@ class Console {
     void registerAllBuiltins();
 #ifdef HDL_HAVE_READLINE
     static char** complt(const char* text, int start, int end);
+    static char* compltGen(const char* text, int state);
     static Console* s_completion_self;
 #endif
 
@@ -208,8 +209,7 @@ class Console {
 
     static std::string toStd(Tcl_Obj* obj);
     static Args toArgs(int objc, Tcl_Obj* const objv[]);
-    std::vector<std::string> complete(const std::string& line,
-                                      size_t cursorPos);
+    std::vector<std::string> complete(const std::string& line);
     std::vector<std::string>
     completeCommandNames(const std::string& prefix) const;
 

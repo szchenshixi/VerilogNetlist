@@ -1,5 +1,3 @@
-#include "hdl/tcl/console.hpp"
-
 #include <algorithm>
 #include <cctype>
 #include <cstring>
@@ -15,6 +13,7 @@
 #include "hdl/elab/elaborate.hpp"
 #include "hdl/elab/spec.hpp"
 #include "hdl/hier/instance.hpp"
+#include "hdl/tcl/console.hpp"
 
 // Register-all header (local to src tree)
 #include "cmd/register_all.hpp"
@@ -34,8 +33,9 @@ static inline std::vector<std::string> split_words(const std::string& s) {
     std::vector<std::string> out;
     std::istringstream iss(s);
     std::string tok;
-    while (iss >> tok)
+    while (iss >> tok) {
         out.push_back(tok);
+    }
     return out;
 }
 
@@ -88,13 +88,14 @@ Console::computeReversePlan(const std::string& sub, const Args& args,
     return it->second.mReverse(const_cast<Console&>(*this), sub, args, preSel);
 }
 
-// NEW: list commands and get help by name
+// List commands and get help by name
 std::vector<std::pair<std::string, std::string>>
 Console::listCommands() const {
     std::vector<std::pair<std::string, std::string>> out;
     out.reserve(mSubcmds.size());
-    for (const auto& kv : mSubcmds)
+    for (const auto& kv : mSubcmds) {
         out.emplace_back(kv.first, kv.second.mHelp);
+    }
     std::sort(out.begin(), out.end(), [](const auto& a, const auto& b) {
         return a.first < b.first;
     });
@@ -125,29 +126,29 @@ int Console::evalLine(const std::string& line) {
 #ifdef HDL_HAVE_READLINE
 Console* Console::s_completion_self = nullptr;
 char** Console::complt(const char* text, int start, int end) {
+    (void)start;
     (void)end;
+    rl_attempted_completion_over = 1;
+    return rl_completion_matches(text, compltGen);
+}
+char* Console::compltGen(const char* text, int state) {
+    static int sCompltIdx = 0;
+    static std::vector<std::string> sCandidates;
     Console* self = s_completion_self;
     if (!self) return nullptr;
+    // Reset on first call
+    if (state == 0) {
+        sCompltIdx = 0;
+        std::string buf(rl_line_buffer ? rl_line_buffer : "");
+        sCandidates = self->complete(buf);
+        if (sCandidates.empty()) return nullptr;
+    }
 
-    std::string buf(rl_line_buffer ? rl_line_buffer : "");
-    auto candidates = self->complete(buf, static_cast<size_t>(start));
-    if (candidates.empty()) return nullptr;
-
-    std::string cur(text ? text : "");
-    std::vector<char*> arr;
-    arr.reserve(candidates.size());
-    for (auto& c : candidates)
-        if (cur.empty() || starts_with(c, cur))
-            arr.push_back(::strdup(c.c_str()));
-
-    if (arr.empty()) return nullptr;
-
-    char** matches =
-      static_cast<char**>(std::malloc((arr.size() + 1) * sizeof(char*)));
-    for (size_t i = 0; i < arr.size(); ++i)
-        matches[i] = arr[i];
-    matches[arr.size()] = nullptr;
-    return matches;
+    // Return next completion
+    if (sCompltIdx < sCandidates.size()) {
+        return strdup(sCandidates[sCompltIdx++].c_str());
+    }
+    return nullptr;
 }
 #endif
 
@@ -227,26 +228,10 @@ Console::Args Console::toArgs(int objc, Tcl_Obj* const objv[]) {
     return out;
 }
 
-std::vector<std::string> Console::complete(const std::string& line,
-                                           size_t cursorPos) {
-    // (void)cursorPos;
-    // auto toks = split_words(line);
-    // if (toks.empty()) return {"hdl"};
-    // if (toks[0] != "hdl") {
-    //     if (toks.size() == 1 && starts_with("hdl", toks[0])) return {"hdl"};
-    //     return {};
-    // }
-    // if (toks.size() == 1) return completeSubcommand("");
-    // if (toks.size() == 2) return completeSubcommand(toks[1]);
-    // const std::string& sub = toks[1];
-    // auto it = mSubcmds.find(sub);
-    // if (it != mSubcmds.end() && it->second.mCompleter)
-    //     return it->second.mCompleter(*this, toks);
-    // return {};
-    (void)cursorPos;
+std::vector<std::string> Console::complete(const std::string& line) {
     auto toks = split_words(line);
     const bool endsSpace = (!line.empty() && std::isspace(line.back()));
-    if (endsSpace) toks.push_back("");
+    if (endsSpace) toks.push_back(""); // treat trailing space as an empty arg
 
     auto sortUnique = [](std::vector<std::string> v) {
         std::sort(v.begin(), v.end());
@@ -254,17 +239,21 @@ std::vector<std::string> Console::complete(const std::string& line,
         return v;
     };
 
-    // At empty prompt -> list all commands
-    if (toks.empty()) return completeCommandNames("");
-
-    // Completing the command name
-    if (toks.size() == 1) return completeCommandNames(toks[0]);
-
-    // Command args: delegate to that command's completer
+    // Case 1: "..." usage
+    if (toks.size() == 0) {
+        // "<Tab>" => show all subcommands
+        return completeCommandNames("");
+    }
+    if (toks.size() == 1) {
+        // "<partial><Tab>" => subcommand names filtered by prefix
+        return completeCommandNames(toks[0]);
+    }
+    // "<cmd> <args...>" => delegate to the subcommand completer
     const std::string& cmd = toks[0];
     auto it = mSubcmds.find(cmd);
-    if (it != mSubcmds.end() && it->second.mCompleter)
+    if (it != mSubcmds.end() && it->second.mCompleter) {
         return it->second.mCompleter(*this, toks);
+    }
     return {};
 }
 
@@ -272,15 +261,16 @@ std::vector<std::string>
 Console::completeCommandNames(const std::string& prefix) const {
     std::vector<std::string> r;
     r.reserve(mSubcmds.size());
-    for (auto& kv : mSubcmds)
-        if (prefix.empty() || starts_with(kv.first, prefix))
+    for (auto& kv : mSubcmds) {
+        if (prefix.empty() || starts_with(kv.first, prefix)) {
             r.push_back(kv.first);
+        }
+    }
     std::sort(r.begin(), r.end());
     return r;
 }
 
 // Public helpers
-
 std::string Console::makeCmdLine(const std::string& sub, const Args& args) {
     std::ostringstream oss;
     oss << sub;

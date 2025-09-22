@@ -28,8 +28,9 @@ static void render_list(Console& c, Tcl_Interp* ip) {
     std::ostringstream oss;
     oss << "commands:\n";
     size_t w = 0;
-    for (auto& p : list)
+    for (auto& p : list) {
         w = std::max(w, p.first.size());
+    }
     for (auto& p : list) {
         oss << "  " << p.first;
         if (p.first.size() < w) oss << std::string(w - p.first.size(), ' ');
@@ -47,7 +48,7 @@ static int cmd_help(Console& c, Tcl_Interp* ip, const Console::Args& a) {
     std::string help;
     if (c.getCommandHelp(sub, help)) {
         std::ostringstream oss;
-        oss << sub << " - " << help << "\n";
+        oss << sub << " - " << help;
         Tcl_SetObjResult(ip, Tcl_NewStringObj(oss.str().c_str(), -1));
         return TCL_OK;
     }
@@ -55,18 +56,19 @@ static int cmd_help(Console& c, Tcl_Interp* ip, const Console::Args& a) {
     auto list = c.listCommands();
     std::vector<std::pair<size_t, std::string>> cand;
     cand.reserve(list.size());
-    for (auto& p : list)
+    for (auto& p : list) {
         cand.emplace_back(lev(sub, p.first), p.first);
+    }
     std::sort(cand.begin(), cand.end(), [](auto& x, auto& y) {
         return x.first < y.first;
     });
     std::ostringstream oss;
     oss << "unknown subcommand: " << sub << "\n";
-    oss << "did you mean:\n";
+    oss << "did you mean:";
     int shown = 0;
     for (auto& kv : cand) {
         if (kv.first <= 3) {
-            oss << "  " << kv.second << "\n";
+            oss << "\n  " << kv.second;
             if (++shown >= 5) break;
         }
     }
@@ -74,12 +76,12 @@ static int cmd_help(Console& c, Tcl_Interp* ip, const Console::Args& a) {
         // fallback to prefix suggestions
         for (auto& p : list) {
             if (p.first.rfind(sub, 0) == 0) {
-                oss << "  " << p.first << "\n";
+                oss << "\n  " << p.first;
                 ++shown;
                 if (shown >= 5) break;
             }
         }
-        if (shown == 0) oss << "  (no close matches)\n";
+        if (shown == 0) oss << "  (no close matches)";
     }
     Tcl_SetObjResult(ip, Tcl_NewStringObj(oss.str().c_str(), -1));
     return TCL_ERROR;
@@ -87,13 +89,13 @@ static int cmd_help(Console& c, Tcl_Interp* ip, const Console::Args& a) {
 
 static std::vector<std::string> compl_help(Console& c,
                                            const Console::Args& toks) {
-    // tokens: [help","<partial>"]
-    if (toks.size() != 2) return {};
+    // tokens: ["hdl","help","<partial>"]
+    if (toks.size() != 3) return {};
     std::vector<std::string> names;
     for (auto& p : c.listCommands())
         names.push_back(p.first);
     std::vector<std::string> out;
-    const std::string pref = toks[1];
+    const std::string pref = toks[2];
     for (auto& n : names)
         if (pref.empty() || n.rfind(pref, 0) == 0) out.push_back(n);
     std::sort(out.begin(), out.end());
@@ -108,10 +110,10 @@ static int cmd_commands(Console& c, Tcl_Interp* ip, const Console::Args&) {
 namespace hdl::tcl {
 void register_cmd_help(Console& c) {
     c.registerCommand("help",
-                      "Show help or help for a command: help [name]",
+                      "Show help or help for a subcommand: hdl help [name]",
                       &cmd_help,
                       &compl_help);
     c.registerCommand(
-      "commands", "List commands with one-line help", &cmd_commands);
+      "commands", "List subcommands with one-line help", &cmd_commands);
 }
 } // namespace hdl::tcl
