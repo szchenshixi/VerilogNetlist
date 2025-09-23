@@ -53,7 +53,8 @@ set(CMD_SOURCES
     src/tcl/cmd/cmd_wires.cpp
     src/tcl/cmd/cmd_dump.cpp
     src/tcl/cmd/cmd_query.cpp
-    src/tcl/cmd/cmd_undo.cpp)
+    src/tcl/cmd/cmd_undo.cpp
+    src/tcl/cmd/cmd_history.cpp)
 add_executable(hdl_tcl src/demo/tcl_console_main.cpp src/tcl/console.cpp
                        ${CMD_SOURCES})
 

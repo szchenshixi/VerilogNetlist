@@ -13,6 +13,7 @@ void register_all_commands(Console& c) {
     register_cmd_dump(c);
     register_cmd_query(c);
     register_cmd_undo(c);
+    register_cmd_history(c);
     // Hook for user-provided commands (see src/tcl/cmd/user/)
     register_user_commands(c);
 }

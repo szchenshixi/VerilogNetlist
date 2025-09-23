@@ -197,8 +197,9 @@ class Console {
 #ifdef HDL_HAVE_READLINE
     static char** complt(const char* text, int start, int end);
     static char* compltGen(const char* text, int state);
-    static Console* s_completion_self;
 #endif
+    static Console* sSelf;
+    static void signalHandler(int signal);
 
   private:
     // Tcl entrypoint for all top-level commands

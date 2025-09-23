@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cctype>
+#include <csignal>
 #include <cstring>
 #include <set>
 #include <sstream>
@@ -124,7 +125,7 @@ int Console::evalLine(const std::string& line) {
 }
 
 #ifdef HDL_HAVE_READLINE
-Console* Console::s_completion_self = nullptr;
+Console* Console::sSelf = nullptr;
 char** Console::complt(const char* text, int start, int end) {
     (void)start;
     (void)end;
@@ -134,7 +135,7 @@ char** Console::complt(const char* text, int start, int end) {
 char* Console::compltGen(const char* text, int state) {
     static int sCompltIdx = 0;
     static std::vector<std::string> sCandidates;
-    Console* self = s_completion_self;
+    Console* self = sSelf;
     if (!self) return nullptr;
     // Reset on first call
     if (state == 0) {
@@ -151,12 +152,22 @@ char* Console::compltGen(const char* text, int state) {
     return nullptr;
 }
 #endif
+void Console::signalHandler(int signal) {
+    if (signal == SIGINT && sSelf) {
+        sSelf->mDiag << "Press Ctrl+D to exit.\n";
+    }
+}
 
 int Console::repl() {
+    Console::sSelf = this;
 #ifdef HDL_HAVE_READLINE
-    Console::s_completion_self = this;
     rl_attempted_completion_function = &Console::complt;
+    static const char* HISTORY_FILE = ".ix_history";
+    // Enable arrow key navigation
+    using_history();
+    read_history(HISTORY_FILE);
 #endif
+    std::signal(SIGINT, signalHandler);
     mDiag << "HDL Tcl console. Type: help\n";
     mDiag << "Press Ctrl+D to exit.\n";
     while (true) {
@@ -179,6 +190,11 @@ int Console::repl() {
 #endif
     }
     mDiag << "Bye.\n";
+
+#ifdef HDL_HAVE_READLINE
+    write_history(HISTORY_FILE);
+    history_truncate_file(HISTORY_FILE, 1000);
+#endif
     return 0;
 }
 
