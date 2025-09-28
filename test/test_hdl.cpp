@@ -42,13 +42,13 @@ TEST(Expr, WidthAndString) {
     auto id_y = Expr::id(y);
     auto s = Expr::slice(x, 5, 2);
     auto c = Expr::concat({s, id_y}); // MSB: x[5:2] (4), LSB: y[3:0] (4) => 8
-    EXPECT_EQ(exprBitWidth(*id_x, m), 8u);
-    EXPECT_EQ(exprBitWidth(*s, m), 4u);
-    EXPECT_EQ(exprBitWidth(*c, m), 8u);
+    EXPECT_EQ(exprBitWidth(id_x, m), 8u);
+    EXPECT_EQ(exprBitWidth(s, m), 4u);
+    EXPECT_EQ(exprBitWidth(c, m), 8u);
 
-    std::string s_str = exprToString(*s);
+    std::string s_str = exprToString(s);
     EXPECT_EQ(s_str, "x[5:2]");
-    std::string c_str = exprToString(*c);
+    std::string c_str = exprToString(c);
     EXPECT_EQ(c_str, "{x[5:2], y}");
 }
 
@@ -121,16 +121,16 @@ TEST(Flatten, IdSliceConcat) {
     ModuleSpec& spec = *specPtr;
     FlattenContext fc(spec, nullptr);
 
-    auto v_id = fc.flattenExpr(*Expr::id(x));
+    auto v_id = fc.flattenExpr(Expr::id(x));
     EXPECT_EQ(v_id.size(), 8u);
     EXPECT_EQ(v_id.front().mKind, BitAtomKind::PortBit);
 
-    auto v_slice = fc.flattenExpr(*Expr::slice(x, 5, 2));
+    auto v_slice = fc.flattenExpr(Expr::slice(x, 5, 2));
     EXPECT_EQ(v_slice.size(), 4u);
     EXPECT_EQ(v_slice.front().mBitIndex, 2u); // LSB-first; first is x[2]
 
     auto v_concat =
-      fc.flattenExpr(*Expr::concat({Expr::slice(x, 5, 2), Expr::id(y)}));
+      fc.flattenExpr(Expr::concat({Expr::slice(x, 5, 2), Expr::id(y)}));
     EXPECT_EQ(v_concat.size(), 8u);
     EXPECT_EQ(v_concat.front().mKind,
               BitAtomKind::WireBit); // LSB comes from y
@@ -190,8 +190,8 @@ TEST(Generate, IfAndFor) {
     // Top
     ModuleDecl top;
     top.mName = Top;
-    top.mParams.push_back(ParamDecl{DO_EXTRA, 1});
-    top.mParams.push_back(ParamDecl{REPL, 3});
+    top.mParams.emplace(DO_EXTRA, 1);
+    top.mParams.emplace(REPL, 3);
     top.mWires.push_back(WireDecl{w0, n(7, 0)});
     top.mWires.push_back(WireDecl{w1, n(7, 0)});
     top.mInstances.push_back(InstanceDecl{
@@ -203,13 +203,13 @@ TEST(Generate, IfAndFor) {
     {
         GenIfDecl gi;
         gi.mLabel = g_if;
-        gi.mCond = intParam(DO_EXTRA);
+        gi.mCond = ast::Expr(ast::IdExpr{DO_EXTRA});
         InstanceDecl x{
           uA2,
           A,
           {},
           {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}};
-        gi.mThenInsts.push_back(x);
+        gi.mThen.mItems.push_back(x);
         top.mGenIfs.push_back(gi);
     }
     // for i in [0,REPL)
@@ -217,15 +217,15 @@ TEST(Generate, IfAndFor) {
         GenForDecl gf;
         gf.mLabel = g_for;
         gf.mLoopVar = IdString("i");
-        gf.mStart = intConst(0);
-        gf.mLimit = intParam(REPL);
-        gf.mStep = intConst(1);
+        gf.mStart = ast::Expr(ast::ConstExpr{0});
+        gf.mLimit = ast::Expr(ast::IdExpr{REPL});
+        gf.mStep = ast::Expr(ast::ConstExpr{1});
         InstanceDecl t{
           IdString("U"),
           A,
           {},
           {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}};
-        gf.mBody.push_back(t);
+        gf.mBody.mItems.push_back(t);
         top.mGenFors.push_back(gf);
     }
 

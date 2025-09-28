@@ -101,29 +101,27 @@ BitVector FlattenContext::flattenSlice(const ast::SliceExpr& s) const {
 BitVector FlattenContext::flattenConcat(const ast::ConcatExpr& c) const {
     BitVector res;
     for (int i = static_cast<int>(c.mParts.size()) - 1; i >= 0; --i) {
-        BitVector part = flattenExpr(*c.mParts[i]);
+        BitVector part = flattenExpr(c.mParts[i]);
         res.insert(res.end(), part.begin(), part.end());
     }
     return res;
 }
 
 BitVector FlattenContext::flattenExpr(const ast::Expr& e) const {
-    return std::visit(
-      [&](auto&& node) -> BitVector {
-          using T = std::decay_t<decltype(node)>;
-          if constexpr (std::is_same_v<T, ast::IdExpr>) {
-              return flattenId(node.mName);
-          } else if constexpr (std::is_same_v<T, ast::ConstExpr>) {
-              return flattenNumber(node.mValue, node.mWidth);
-          } else if constexpr (std::is_same_v<T, ast::ConcatExpr>) {
-              return flattenConcat(node);
-          } else if constexpr (std::is_same_v<T, ast::SliceExpr>) {
-              return flattenSlice(node);
-          } else {
-              return BitVector{};
-          }
-      },
-      e.mNode);
+    return e.visit([&](auto&& node) -> BitVector {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::IdExpr>) {
+            return flattenId(node.mName);
+        } else if constexpr (std::is_same_v<T, ast::ConstExpr>) {
+            return flattenNumber(node.mValue, node.mWidth);
+        } else if constexpr (std::is_same_v<T, ast::ConcatExpr>) {
+            return flattenConcat(node);
+        } else if constexpr (std::is_same_v<T, ast::SliceExpr>) {
+            return flattenSlice(node);
+        } else {
+            return BitVector{};
+        }
+    });
 }
 
 } // namespace hdl::elab

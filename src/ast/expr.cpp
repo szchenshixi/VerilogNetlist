@@ -23,51 +23,48 @@ static const NetEntity* findEntity(const ModuleDecl& m, IdString name) {
 }
 
 uint32_t exprBitWidth(const Expr& e, const ModuleDecl& m) {
-    return std::visit(
-      [&](auto&& node) -> uint32_t {
-          using T = std::decay_t<decltype(node)>;
-          if constexpr (std::is_same_v<T, IdExpr>) {
-              auto* ent = findEntity(m, node.mName);
-              return ent ? ent->width() : 0;
-          } else if constexpr (std::is_same_v<T, ConstExpr>) {
-              if (node.mWidth > 0) return static_cast<uint32_t>(node.mWidth);
-              return minimalWidthForValue(node.mValue);
-          } else if constexpr (std::is_same_v<T, ConcatExpr>) {
-              uint32_t sum = 0;
-              for (const auto& p : node.mParts)
-                  sum += exprBitWidth(*p, m);
-              return sum;
-          } else if constexpr (std::is_same_v<T, SliceExpr>) {
-              return width_from_range(node.mMsb, node.mLsb);
-          } else {
-              return 0u;
-          }
-      },
-      e.mNode);
+    return e.visit([&](auto&& node) -> uint32_t {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, IdExpr>) {
+            auto* ent = findEntity(m, node.mName);
+            return ent ? ent->width() : 0;
+        } else if constexpr (std::is_same_v<T, ConstExpr>) {
+            if (node.mWidth > 0) return static_cast<uint32_t>(node.mWidth);
+            return minimalWidthForValue(node.mValue);
+        } else if constexpr (std::is_same_v<T, ConcatExpr>) {
+            uint32_t sum = 0;
+            for (const auto& p : node.mParts) {
+                sum += exprBitWidth(p, m);
+            }
+            return sum;
+        } else if constexpr (std::is_same_v<T, SliceExpr>) {
+            return width_from_range(node.mMsb, node.mLsb);
+        } else {
+            return 0u;
+        }
+    });
 }
 
 static void exprToStringImpl(const Expr& e, std::ostream& os) {
-    std::visit(
-      [&](auto&& node) {
-          using T = std::decay_t<decltype(node)>;
-          if constexpr (std::is_same_v<T, IdExpr>) {
-              os << node.mName.str();
-          } else if constexpr (std::is_same_v<T, ConstExpr>) {
-              if (!node.mText.empty()) os << node.mText;
-              else os << node.mWidth << "'d" << node.mValue;
-          } else if constexpr (std::is_same_v<T, ConcatExpr>) {
-              os << "{";
-              for (size_t i = 0; i < node.mParts.size(); ++i) {
-                  exprToStringImpl(*node.mParts[i], os);
-                  if (i + 1 < node.mParts.size()) os << ", ";
-              }
-              os << "}";
-          } else if constexpr (std::is_same_v<T, SliceExpr>) {
-              os << node.mBaseId.str() << "[" << node.mMsb << ":" << node.mLsb
-                 << "]";
-          }
-      },
-      e.mNode);
+    e.visit([&](auto&& node) {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, IdExpr>) {
+            os << node.mName.str();
+        } else if constexpr (std::is_same_v<T, ConstExpr>) {
+            if (!node.mText.empty()) os << node.mText;
+            else os << node.mWidth << "'d" << node.mValue;
+        } else if constexpr (std::is_same_v<T, ConcatExpr>) {
+            os << "{";
+            for (size_t i = 0; i < node.mParts.size(); ++i) {
+                exprToStringImpl(node.mParts[i], os);
+                if (i + 1 < node.mParts.size()) os << ", ";
+            }
+            os << "}";
+        } else if constexpr (std::is_same_v<T, SliceExpr>) {
+            os << node.mBaseId.str() << "[" << node.mMsb << ":" << node.mLsb
+               << "]";
+        }
+    });
 }
 
 std::string exprToString(const Expr& e) {

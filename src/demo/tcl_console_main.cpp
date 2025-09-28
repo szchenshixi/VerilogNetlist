@@ -1,11 +1,10 @@
-#include "hdl/tcl/console.hpp"
-
 #include <iostream>
 #include <memory>
 
 #include "hdl/ast/decl.hpp"
 #include "hdl/ast/expr.hpp"
 #include "hdl/elab/elaborate.hpp"
+#include "hdl/tcl/console.hpp"
 
 using namespace hdl;
 using namespace hdl::ast;
@@ -39,8 +38,8 @@ int main() {
     // Top
     ModuleDecl top;
     top.mName = Top;
-    top.mParams.push_back(ParamDecl{DO_EXTRA, 1});
-    top.mParams.push_back(ParamDecl{REPL, 2});
+    top.mParams.emplace(DO_EXTRA, 1);
+    top.mParams.emplace(REPL, 2);
     top.mWires.push_back(RW(w0, 7, 0));
     top.mWires.push_back(RW(w1, 7, 0));
     top.mWires.push_back(RW(w2, 7, 0));
@@ -76,8 +75,7 @@ int main() {
     }
 
     // Build the specialization key for Top with defaults so Console can find
-    auto topEnv = std::unordered_map<IdString, int64_t, IdString::Hash>{
-      {DO_EXTRA, 1}, {REPL, 2}};
+    auto topEnv = ParamEnv{{DO_EXTRA, 1}, {REPL, 2}};
     IdString topKey(elab::makeModuleKey(Top.str(), topEnv));
     if (console.getSpecByKey(topKey)) {
         console.selection().mModuleKeys.push_back(topKey);

@@ -24,7 +24,7 @@ struct ConstExpr {
 
 struct ConcatExpr {
     // Parts MSB -> LSB
-    std::vector<std::shared_ptr<Expr>> mParts;
+    std::vector<Expr> mParts;
 };
 
 struct SliceExpr {
@@ -42,21 +42,37 @@ struct Expr {
     explicit Expr(Variant v)
         : mNode(std::move(v)) {}
 
-    static std::shared_ptr<Expr> id(IdString n) {
-        return std::make_shared<Expr>(IdExpr{n});
+    // Factory methods that return by value
+    static Expr id(IdString n) { return Expr(IdExpr{n}); }
+
+    static Expr number(uint64_t v, int w = 0, const std::string& t = "") {
+        return Expr(ConstExpr{v, w, t});
     }
-    static std::shared_ptr<Expr> number(uint64_t v, int w = 0,
-                                        const std::string& t = "") {
-        return std::make_shared<Expr>(ConstExpr{v, w, t});
+
+    static Expr concat(std::vector<Expr> parts) {
+        return Expr(ConcatExpr{std::move(parts)});
     }
-    static std::shared_ptr<Expr>
-    concat(std::vector<std::shared_ptr<Expr>> parts) {
-        ConcatExpr c;
-        c.mParts = std::move(parts);
-        return std::make_shared<Expr>(std::move(c));
+
+    static Expr slice(IdString baseId, int msb, int lsb) {
+        return Expr(SliceExpr{baseId, msb, lsb});
     }
-    static std::shared_ptr<Expr> slice(IdString baseId, int msb, int lsb) {
-        return std::make_shared<Expr>(SliceExpr{baseId, msb, lsb});
+
+    // Access methods
+    template <typename T>
+    bool is() const {
+        return std::holds_alternative<T>(mNode);
+    }
+
+    template <typename T>
+    const T& as() const {
+        return std::get<T>(mNode);
+    }
+
+    // Use example:
+    // concat_expr.visit([](const auto& expr) { handle each expression type });
+    template <typename Visitor>
+    auto visit(Visitor&& vis) const {
+        return std::visit(std::forward<Visitor>(vis), mNode);
     }
 };
 

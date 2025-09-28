@@ -2,6 +2,8 @@
 #include <cassert>
 #include <iostream>
 #include <sstream>
+#include <type_traits>
+#include <variant>
 
 #include "hdl/ast/decl.hpp"
 #include "hdl/ast/expr.hpp"
@@ -11,26 +13,49 @@
 
 namespace hdl::elab {
 
-static int64_t evalIntExpr(
-  const ast::IntExpr& x,
-  const std::unordered_map<IdString, int64_t, IdString::Hash>& params,
-  std::ostream* diag = nullptr) {
-    if (std::holds_alternative<int64_t>(x.mV)) return std::get<int64_t>(x.mV);
-    IdString n = std::get<IdString>(x.mV);
-    auto it = params.find(n);
-    if (it == params.end()) {
-        if (diag) {
-            (*diag) << "ERROR: Unknown parameter '" << n.str()
-                    << "' in IntExpr\n";
+static int64_t evalIntExpr(const ast::Expr& x, const ast::ParamEnv& params,
+                           std::ostream* diag = nullptr) {
+    return x.visit([&](const auto& node) -> int64_t {
+        using T = std::decay_t<decltype(node)>;
+        if constexpr (std::is_same_v<T, ast::IdExpr>) {
+            IdString n = node.mName;
+            auto it = params.find(n);
+            if (it == params.end()) {
+                if (diag) {
+                    (*diag) << "ERROR: Unknown parameter '" << n.str()
+                            << "' in IntExpr\n";
+                }
+                return 0;
+            }
+            return it->second;
+        } else if constexpr (std::is_same_v<T, ast::ConstExpr>) {
+            return static_cast<int64_t>(node.mValue);
+        } else if constexpr (std::is_same_v<T, ast::ConcatExpr>) {
+            if (diag) {
+                (*diag) << "ERROR: Int value evaluation is not supported in "
+                           "concat expression yet "
+                        << ast::exprToString(ast::Expr(node)) << "\n";
+            }
+            return 0;
+        } else if constexpr (std::is_same_v<T, ast::SliceExpr>) {
+            if (diag) {
+                (*diag) << "ERROR: Int value evaluation is not supported in "
+                           "slice expression yet "
+                        << ast::exprToString(ast::Expr(node)) << "\n";
+            }
+            return 0;
+        } else {
+            if (diag) {
+                (*diag) << "ERROR: Unknown expression type in int value "
+                           "evaluation\n";
+            }
+            return 0;
         }
-        return 0;
-    }
-    return it->second;
+    });
 }
 
-std::string makeModuleKey(
-  std::string_view nameText,
-  const std::unordered_map<IdString, int64_t, IdString::Hash>& params) {
+std::string makeModuleKey(std::string_view nameText,
+                          const ast::ParamEnv& params) {
     IdString name(nameText);
     std::vector<std::pair<std::string, int64_t>> v;
     v.reserve(params.size());
@@ -49,17 +74,25 @@ std::string makeModuleKey(
     return oss.str();
 }
 
-static std::unordered_map<IdString, int64_t, IdString::Hash>
-defaultParamEnv(const ast::ModuleDecl& decl) {
-    std::unordered_map<IdString, int64_t, IdString::Hash> env;
-    for (auto& p : decl.mParams)
-        env[p.mName] = p.mValue;
-    return env;
+static const ast::ParamEnv& defaultParamEnv(const ast::ModuleDecl& decl) {
+    return decl.mParams;
 }
 
-std::unique_ptr<ModuleSpec> elaborateModule(
-  const ast::ModuleDecl& decl,
-  const std::unordered_map<IdString, int64_t, IdString::Hash>& paramEnv) {
+static std::string buildPrefixedName(const std::vector<std::string>& stack,
+                                     const std::string& base) {
+    if (stack.empty()) { return base; }
+    std::string prefix = stack.front();
+    for (std::size_t i = 1; i < stack.size(); ++i) {
+        prefix.push_back('_');
+        prefix.append(stack[i]);
+    }
+    prefix.push_back('_');
+    prefix.append(base);
+    return prefix;
+}
+
+std::unique_ptr<ModuleSpec> elaborateModule(const ast::ModuleDecl& decl,
+                                            const ast::ParamEnv& paramEnv) {
     auto spec = std::make_unique<ModuleSpec>();
     spec->mName = decl.mName;
     spec->mDecl = &decl;
@@ -115,14 +148,13 @@ void wireAssigns(ModuleSpec& spec) {
     FlattenContext fc(spec, &std::cerr);
 
     for (const auto& asg : spec.mDecl->mAssigns) {
-        if (!asg.mLhs || !asg.mRhs) continue;
-        auto L = fc.flattenExpr(*asg.mLhs);
-        auto R = fc.flattenExpr(*asg.mRhs);
+        auto L = fc.flattenExpr(asg.mLhs);
+        auto R = fc.flattenExpr(asg.mRhs);
         if (L.size() != R.size()) {
             std::cerr << "ERROR: assign width mismatch in module "
                       << spec.mName.str()
-                      << " (lhs=" << ast::exprToString(*asg.mLhs)
-                      << ", rhs=" << ast::exprToString(*asg.mRhs) << ")\n";
+                      << " (lhs=" << ast::exprToString(asg.mLhs)
+                      << ", rhs=" << ast::exprToString(asg.mRhs) << ")\n";
             continue;
         }
         for (size_t i = 0; i < L.size(); ++i) {
@@ -144,10 +176,9 @@ void wireAssigns(ModuleSpec& spec) {
     }
 }
 
-ModuleSpec& getOrCreateSpec(
-  const ast::ModuleDecl& decl,
-  const std::unordered_map<IdString, int64_t, IdString::Hash>& paramEnv,
-  ModuleLibrary& lib) {
+ModuleSpec& getOrCreateSpec(const ast::ModuleDecl& decl,
+                            const ast::ParamEnv& paramEnv,
+                            ModuleLibrary& lib) {
     std::string key = makeModuleKey(decl.mName.str(), paramEnv);
     auto it = lib.find(key);
     if (it != lib.end()) return *it->second;
@@ -158,55 +189,93 @@ ModuleSpec& getOrCreateSpec(
     return ref;
 }
 
+void expandGenerateBlock(const ModuleSpec& spec, const ast::GenBlock& block,
+                         const ast::ParamEnv& env,
+                         const std::vector<std::string>& nameStack,
+                         std::vector<ast::InstanceDecl>& out,
+                         std::ostream& diag);
+
+void expandGenIf(const ModuleSpec& spec, const ast::GenIfDecl& decl,
+                 const ast::ParamEnv& env, std::vector<std::string> nameStack,
+                 std::vector<ast::InstanceDecl>& out, std::ostream& diag) {
+    int64_t cond = evalIntExpr(decl.mCond, env, &diag);
+    const ast::GenBlock& selected = (cond != 0) ? decl.mThen : decl.mElse;
+    if (selected.mItems.empty()) { return; }
+    if (decl.mLabel.valid()) { nameStack.push_back(decl.mLabel.str()); }
+    expandGenerateBlock(spec, selected, env, nameStack, out, diag);
+}
+
+void expandGenFor(const ModuleSpec& spec, const ast::GenForDecl& decl,
+                  const ast::ParamEnv& env, std::vector<std::string> nameStack,
+                  std::vector<ast::InstanceDecl>& out, std::ostream& diag) {
+    int64_t start = evalIntExpr(decl.mStart, env, &diag);
+    int64_t limit = evalIntExpr(decl.mLimit, env, &diag);
+    int64_t step = evalIntExpr(decl.mStep, env, &diag);
+    if (step == 0) {
+        diag << "ERROR: gen-for step is zero in " << spec.mName.str() << "\n";
+        return;
+    }
+    if ((step > 0 && start >= limit) || (step < 0 && start <= limit)) {
+        return;
+    }
+
+    std::string label = decl.mLabel.valid() ? decl.mLabel.str() : "gen";
+    int64_t iter = 0;
+    for (int64_t val = start; (step > 0) ? (val < limit) : (val > limit);
+         val += step, ++iter) {
+        ast::ParamEnv iterEnv = env;
+        iterEnv[decl.mLoopVar] = val;
+
+        auto iterStack = nameStack;
+        iterStack.push_back(label + "_" + std::to_string(iter));
+        expandGenerateBlock(spec, decl.mBody, iterEnv, iterStack, out, diag);
+    }
+}
+
+void expandGenerateBlock(const ModuleSpec& spec, const ast::GenBlock& block,
+                         const ast::ParamEnv& env,
+                         const std::vector<std::string>& nameStack,
+                         std::vector<ast::InstanceDecl>& out,
+                         std::ostream& diag) {
+    for (const auto& item : block.mItems) {
+        if (std::holds_alternative<ast::InstanceDecl>(item)) {
+            auto inst = std::get<ast::InstanceDecl>(item);
+            if (!nameStack.empty()) {
+                inst.mName =
+                  IdString(buildPrefixedName(nameStack, inst.mName.str()));
+            }
+            out.push_back(std::move(inst));
+        } else if (std::holds_alternative<ast::GenIfDecl>(item)) {
+            const auto& gi = std::get<ast::GenIfDecl>(item);
+            expandGenIf(spec, gi, env, nameStack, out, diag);
+        } else if (std::holds_alternative<ast::GenForDecl>(item)) {
+            const auto& gf = std::get<ast::GenForDecl>(item);
+            expandGenFor(spec, gf, env, nameStack, out, diag);
+        } else if (std::holds_alternative<ast::GenCaseDecl>(item)) {
+            const auto& gc = std::get<ast::GenCaseDecl>(item);
+            // expandGenCase(spec, gc, env, nameStack, out, diag);
+        } else {
+            std::cerr << "Error: Unknown GenItem type\n";
+        }
+    }
+}
+
 static void expandGenerates(const ModuleSpec& spec,
                             const ast::ModuleDecl& decl,
                             std::vector<ast::InstanceDecl>& out,
                             std::ostream& diag) {
-    // Copy original instances
-    for (const auto& i : decl.mInstances) {
-        out.push_back(i);
+    for (const auto& inst : decl.mInstances) {
+        out.push_back(inst);
     }
 
-    // gen-if
+    auto baseEnv = spec.mParamEnv;
+
     for (const auto& g : decl.mGenIfs) {
-        int64_t c = evalIntExpr(g.mCond, spec.mParamEnv, &diag);
-        const auto& list = (c != 0) ? g.mThenInsts : g.mElseInsts;
-        for (size_t idx = 0; idx < list.size(); ++idx) {
-            ast::InstanceDecl inst = list[idx];
-            if (g.mLabel.valid()) {
-                std::string newName = g.mLabel.str() + "_" + inst.mName.str();
-                inst.mName = IdString(newName);
-            }
-            out.push_back(std::move(inst));
-        }
+        expandGenIf(spec, g, baseEnv, /* nameStack */ {}, out, diag);
     }
 
-    // gen-for
     for (const auto& gf : decl.mGenFors) {
-        int64_t start = evalIntExpr(gf.mStart, spec.mParamEnv, &diag);
-        int64_t limit = evalIntExpr(gf.mLimit, spec.mParamEnv, &diag);
-        int64_t step = evalIntExpr(gf.mStep, spec.mParamEnv, &diag);
-        if (step == 0) {
-            diag << "ERROR: gen-for step is zero in " << spec.mName.str()
-                 << "\n";
-            continue;
-        }
-        if ((step > 0 && start >= limit) || (step < 0 && start <= limit)) {
-            continue;
-        }
-        int64_t iter = 0;
-        for (int64_t i = start; (step > 0) ? (i < limit) : (i > limit);
-             i += step, ++iter) {
-            for (const auto& templ : gf.mBody) {
-                ast::InstanceDecl inst = templ;
-                std::string prefix =
-                  gf.mLabel.valid() ? gf.mLabel.str() : "gen";
-                std::string newName =
-                  prefix + "_" + std::to_string(iter) + "_" + inst.mName.str();
-                inst.mName = IdString(newName);
-                out.push_back(std::move(inst));
-            }
-        }
+        expandGenFor(spec, gf, baseEnv, /* nameStack */ {}, out, diag);
     }
 }
 
@@ -233,9 +302,8 @@ void linkInstances(ModuleSpec& spec, const ASTIndex& astIndex,
 
         // Build parameter environment for callee: defaults + overrides
         auto calleeParams = defaultParamEnv(calleeDecl);
-        for (const auto& ov : idecl.mParamOverrides) {
-            int64_t val = evalIntExpr(ov.mValue, spec.mParamEnv, &diag);
-            calleeParams[ov.mName] = val;
+        for (const auto& [key, val] : idecl.mParamOverrides) {
+            calleeParams[key] = val;
         }
 
         // Get/Elaborate callee spec with parameters
@@ -256,12 +324,12 @@ void linkInstances(ModuleSpec& spec, const ASTIndex& astIndex,
                 continue;
             }
             uint32_t Wf = callee.mPorts[formalIdx].width();
-            BitVector actual = fc.flattenExpr(*c.mActual);
+            BitVector actual = fc.flattenExpr(c.mActual);
             if (actual.size() != Wf) {
                 diag << "ERROR: Width mismatch binding " << idecl.mName.str()
                      << "." << c.mFormal.str() << " Wf=" << Wf
                      << " Wa=" << actual.size()
-                     << " actual=" << ast::exprToString(*c.mActual) << "\n";
+                     << " actual=" << ast::exprToString(c.mActual) << "\n";
                 continue;
             }
             inst.mConnections.push_back(hier::PortBinding{

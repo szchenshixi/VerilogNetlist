@@ -2,6 +2,7 @@
 // AST-level declarations with IdString and Wire terminology.
 
 #include <memory>
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -29,67 +30,69 @@ struct WireDecl {
 };
 
 struct ConnDecl {
-    IdString mFormal;              // port name in callee
-    std::shared_ptr<Expr> mActual; // expression in caller module scope
+    IdString mFormal; // port name in callee
+    Expr mActual;     // expression in caller module scope
 };
 
 struct AssignStmt {
-    std::shared_ptr<Expr> mLhs;
-    std::shared_ptr<Expr> mRhs;
+    Expr mLhs;
+    Expr mRhs;
 };
 
-struct ParamDecl {
-    IdString mName;
-    int64_t mValue = 0;
-};
-
-struct IntExpr {
-    // Either a literal or a parameter reference.
-    std::variant<int64_t, IdString> mV;
-};
-inline IntExpr intConst(int64_t x) {
-    IntExpr e;
-    e.mV = x;
-    return e;
-}
-inline IntExpr intParam(IdString n) {
-    IntExpr e;
-    e.mV = n;
-    return e;
-}
-
-struct ParamAssign {
-    IdString mName;
-    IntExpr mValue;
-};
+using ParamEnv = std::unordered_map<IdString, int64_t, IdString::Hash>;
 
 struct InstanceDecl {
     IdString mName;
     IdString mTargetModule;
-    std::vector<ParamAssign> mParamOverrides;
+    ParamEnv mParamOverrides;
     std::vector<ConnDecl> mConns;
 };
 
 // Generate (minimal)
-struct GenForDecl {
-    IdString mLabel;   // name prefix
-    IdString mLoopVar; // unused in this demo
-    IntExpr mStart;
-    IntExpr mLimit; // iterate i in [start, limit) by +step
-    IntExpr mStep;
-    std::vector<InstanceDecl> mBody; // replicated body
+struct GenIfDecl;
+struct GenForDecl;
+struct GenCaseDecl;
+
+using GenItem = std::variant<InstanceDecl, GenIfDecl, GenForDecl, GenCaseDecl>;
+
+struct GenBlock {
+    std::vector<GenItem> mItems;
+
+    bool empty() const { return mItems.empty(); }
+    void clear() { mItems.clear(); }
 };
 
 struct GenIfDecl {
-    IdString mLabel; // name prefix
-    IntExpr mCond;   // nonzero => thenInsts, else => elseInsts
-    std::vector<InstanceDecl> mThenInsts;
-    std::vector<InstanceDecl> mElseInsts;
+    IdString mLabel;
+    Expr mCond;
+    GenBlock mThen;
+    GenBlock mElse;
+};
+
+struct GenForDecl {
+    IdString mLabel;
+    IdString mLoopVar;
+    Expr mStart;
+    Expr mLimit;
+    Expr mStep;
+    GenBlock mBody;
+};
+
+struct GenCaseDecl {
+    struct Item {
+        std::vector<Expr> mChoices;
+        bool mIsDefault = false;
+        IdString mLabel;
+        GenBlock mBody;
+    };
+    IdString mLabel;
+    Expr mExpr;
+    std::vector<Item> mItems;
 };
 
 struct ModuleDecl {
     IdString mName;
-    std::vector<ParamDecl> mParams;
+    ParamEnv mParams;
     std::vector<PortDecl> mPorts;
     std::vector<WireDecl> mWires;
     std::vector<AssignStmt> mAssigns;

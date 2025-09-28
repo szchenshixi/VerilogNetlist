@@ -295,10 +295,9 @@ std::string Console::makeCmdLine(const std::string& sub, const Args& args) {
     return oss.str();
 }
 
-std::unordered_map<IdString, int64_t, IdString::Hash>
-Console::parseParamTokens(const std::vector<std::string>& toks,
-                          size_t startIdx, std::ostream& diag) {
-    std::unordered_map<IdString, int64_t, IdString::Hash> env;
+ast::ParamEnv Console::parseParamTokens(const std::vector<std::string>& toks,
+                                        size_t startIdx, std::ostream& diag) {
+    ast::ParamEnv env;
     for (size_t i = startIdx; i < toks.size(); ++i) {
         const std::string& t = toks[i];
         auto eq = t.find('=');
@@ -373,8 +372,9 @@ Console::completeParams(IdString moduleName,
     auto it = mAstIndex.find(moduleName);
     if (it == mAstIndex.end()) return r;
     const ast::ModuleDecl& d = it->second.get();
-    for (auto& p : d.mParams)
-        r.push_back(p.mName.str() + "=");
+    for (auto& [key, _] : d.mParams) {
+        r.push_back(key.str() + "=");
+    }
     std::sort(r.begin(), r.end());
     return r;
 }
@@ -385,10 +385,9 @@ elab::ModuleSpec* Console::getSpecByKey(IdString key) {
     if (it == mLib.end()) return nullptr;
     return it->second.get();
 }
-elab::ModuleSpec* Console::getOrElabByName(
-  IdString name,
-  const std::unordered_map<IdString, int64_t, IdString::Hash>& env,
-  IdString* outKey) {
+elab::ModuleSpec* Console::getOrElabByName(IdString name,
+                                           const ast::ParamEnv& env,
+                                           IdString* outKey) {
     auto itAst = mAstIndex.find(name);
     if (itAst == mAstIndex.end()) return nullptr;
     elab::ModuleSpec& s =

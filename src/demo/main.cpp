@@ -61,9 +61,9 @@ int main() {
         auto lhs = ast::Expr::id(p_out);
         auto s0 = ast::Expr::slice(p_in, 3, 0);
         auto s1 = ast::Expr::slice(p_in, 7, 4);
-        std::vector<std::shared_ptr<ast::Expr>> parts;
-        parts.push_back(s0); // MSB part
-        parts.push_back(s1); // LSB part
+        std::vector<ast::Expr> parts;
+        parts.emplace_back(s0); // MSB part
+        parts.emplace_back(s1); // LSB part
         auto rhs = ast::Expr::concat(std::move(parts));
         ast::AssignStmt asg;
         asg.mLhs = lhs;
@@ -74,8 +74,8 @@ int main() {
     // Top with params and generates
     ast::ModuleDecl top;
     top.mName = Top_sym;
-    top.mParams.push_back(ast::ParamDecl{DO_EXTRA, 1});
-    top.mParams.push_back(ast::ParamDecl{REPL, 2});
+    top.mParams.emplace(DO_EXTRA, 1);
+    top.mParams.emplace(REPL, 2);
     top.mWires.push_back(makeWire(w0, 7, 0));
     top.mWires.push_back(makeWire(w1, 7, 0));
     top.mWires.push_back(makeWire(w2, 7, 0));
@@ -93,7 +93,7 @@ int main() {
     {
         ast::GenIfDecl gi;
         gi.mLabel = g_if;
-        gi.mCond = ast::intParam(DO_EXTRA);
+        gi.mCond = ast::Expr::id(DO_EXTRA);
         ast::InstanceDecl uAx;
         uAx.mName = uA_extra;
         uAx.mTargetModule = A_sym;
@@ -101,16 +101,16 @@ int main() {
         ast::ConnDecl c1{p_out, ast::Expr::id(w3)};
         uAx.mConns.push_back(std::move(c0));
         uAx.mConns.push_back(std::move(c1));
-        gi.mThenInsts.push_back(std::move(uAx));
+        gi.mThen.mItems.push_back(std::move(uAx));
         top.mGenIfs.push_back(std::move(gi));
     }
     {
         ast::GenForDecl gf;
         gf.mLabel = g_for;
         gf.mLoopVar = IdString("i");
-        gf.mStart = ast::intConst(0);
-        gf.mLimit = ast::intParam(REPL);
-        gf.mStep = ast::intConst(1);
+        gf.mStart = ast::Expr::number(0);
+        gf.mLimit = ast::Expr::id(REPL);
+        gf.mStep = ast::Expr::number(1);
         ast::InstanceDecl uAr;
         uAr.mName = uA_rep;
         uAr.mTargetModule = A_sym;
@@ -118,7 +118,7 @@ int main() {
         ast::ConnDecl c1{p_out, ast::Expr::id(w1)};
         uAr.mConns.push_back(std::move(c0));
         uAr.mConns.push_back(std::move(c1));
-        gf.mBody.push_back(std::move(uAr));
+        gf.mBody.mItems.push_back(std::move(uAr));
         top.mGenFors.push_back(std::move(gf));
     }
 
@@ -131,11 +131,11 @@ int main() {
     ModuleLibrary lib;
 
     // Elaborate A (no params)
-    auto envA = std::unordered_map<IdString, int64_t, IdString::Hash>{};
+    auto envA = ParamEnv{};
     elab::ModuleSpec& A = getOrCreateSpec(modA, envA, lib);
 
     // Elaborate Top with defaults
-    auto envTop = std::unordered_map<IdString, int64_t, IdString::Hash>{
+    auto envTop = ParamEnv{
       {DO_EXTRA, 1}, {REPL, 2}};
     elab::ModuleSpec& Top = getOrCreateSpec(top, envTop, lib);
 
