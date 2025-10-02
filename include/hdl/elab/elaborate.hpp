@@ -17,9 +17,9 @@ std::string makeModuleKey(
   const std::unordered_map<IdString, int64_t, IdString::Hash>& params);
 
 // Elaborate a module with a given parameter environment.
-std::unique_ptr<ModuleSpec> elaborateModule(
+ModuleSpec elaborateModule(
   const ast::ModuleDecl& decl,
-  const std::unordered_map<IdString, int64_t, IdString::Hash>& paramEnv);
+  const std::unordered_map<IdString, int64_t, IdString::Hash>& paramEnv = {});
 
 // Apply continuous assigns to a module's BitMap connectivity.
 void wireAssigns(ModuleSpec& spec);

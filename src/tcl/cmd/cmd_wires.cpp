@@ -128,8 +128,8 @@ static int cmd_list_wires(Console& c, Tcl_Interp* ip, const Console::Args&) {
         oss << "Module " << key.str() << ":\n";
         for (size_t i = 0; i < s->mWires.size(); ++i) {
             auto& w = s->mWires[i];
-            oss << "  [" << i << "] " << w.mName.str() << " [" << w.mEnt.mMsb
-                << ":" << w.mEnt.mLsb << "]\n";
+            oss << "  [" << i << "] " << w.mName.str() << " [" << w.mNet.mMsb
+                << ":" << w.mNet.mLsb << "]\n";
         }
     }
     Tcl_SetObjResult(ip, Tcl_NewStringObj(oss.str().c_str(), -1));

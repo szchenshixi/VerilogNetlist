@@ -64,15 +64,15 @@ BitVector FlattenContext::flattenSlice(const ast::SliceExpr& s) const {
     BitVector v;
     v.reserve(width);
 
-    auto computeOffset = [](int absIdx, const ast::NetEntity& ent) -> int {
-        if (ent.mMsb >= ent.mLsb) return absIdx - ent.mLsb;
-        else return ent.mLsb - absIdx;
+    auto computeOffset = [](int absIdx, const NetSpec& net) -> int {
+        if (net.mMsb >= net.mLsb) return absIdx - net.mLsb;
+        else return net.mLsb - absIdx;
     };
 
     if (pIdx >= 0) {
-        const auto& ent = mSpec.mPorts[pIdx].mEnt;
+        const auto& net = mSpec.mPorts[pIdx].mNet;
         for (int abs = lo; abs <= hi; ++abs) {
-            int off = computeOffset(abs, ent);
+            int off = computeOffset(abs, net);
             if (off < 0 ||
                 static_cast<uint32_t>(off) >= mSpec.mPorts[pIdx].width()) {
                 error("Slice out of range on port " + id.str());
@@ -82,9 +82,9 @@ BitVector FlattenContext::flattenSlice(const ast::SliceExpr& s) const {
               BitAtom{BitAtomKind::PortBit, id, static_cast<uint32_t>(off)});
         }
     } else {
-        const auto& ent = mSpec.mWires[wIdx].mEnt;
+        const auto& net = mSpec.mWires[wIdx].mNet;
         for (int abs = lo; abs <= hi; ++abs) {
-            int off = computeOffset(abs, ent);
+            int off = computeOffset(abs, net);
             if (off < 0 ||
                 static_cast<uint32_t>(off) >= mSpec.mWires[wIdx].width()) {
                 error("Slice out of range on wire " + id.str());

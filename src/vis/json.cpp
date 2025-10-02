@@ -27,8 +27,8 @@ static void buildNodes(const elab::ModuleSpec& spec, json& outNodes) {
         outNodes.push_back({{"id", w.mName.str()},
                             {"type", "wire"},
                             {"name", w.mName.str()},
-                            {"msb", w.mEnt.mMsb},
-                            {"lsb", w.mEnt.mLsb}});
+                            {"msb", w.mNet.mMsb},
+                            {"lsb", w.mNet.mLsb}});
     }
     // Ports (module-level)
     for (const auto& p : spec.mPorts) {
@@ -36,8 +36,8 @@ static void buildNodes(const elab::ModuleSpec& spec, json& outNodes) {
                             {"type", "port"},
                             {"name", p.mName.str()},
                             {"dir", std::string(to_string(p.mDir))},
-                            {"msb", p.mEnt.mMsb},
-                            {"lsb", p.mEnt.mLsb}});
+                            {"msb", p.mNet.mMsb},
+                            {"lsb", p.mNet.mLsb}});
     }
     // Instances
     for (const auto& inst : spec.mInstances) {

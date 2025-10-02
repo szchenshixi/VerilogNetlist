@@ -343,7 +343,7 @@ Console::completePortsForKey(const std::string& key,
     std::vector<std::string> r;
     auto it = mLib.find(key);
     if (it == mLib.end()) return r;
-    const auto& spec = *it->second;
+    const auto& spec = it->second;
     for (auto& p : spec.mPorts) {
         auto s = p.mName.str();
         if (prefix.empty() || s.rfind(prefix, 0) == 0) r.push_back(s);
@@ -357,7 +357,7 @@ Console::completeWiresForKey(const std::string& key,
     std::vector<std::string> r;
     auto it = mLib.find(key);
     if (it == mLib.end()) return r;
-    const auto& spec = *it->second;
+    const auto& spec = it->second;
     for (auto& w : spec.mWires) {
         auto s = w.mName.str();
         if (prefix.empty() || s.rfind(prefix, 0) == 0) r.push_back(s);
@@ -383,7 +383,7 @@ elab::ModuleSpec* Console::getSpecByKey(IdString key) {
     if (key == IdString()) return nullptr;
     auto it = mLib.find(key.str());
     if (it == mLib.end()) return nullptr;
-    return it->second.get();
+    return &it->second;
 }
 elab::ModuleSpec* Console::getOrElabByName(IdString name,
                                            const ast::ParamEnv& env,

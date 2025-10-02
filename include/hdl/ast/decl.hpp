@@ -1,8 +1,7 @@
 #pragma once
 // AST-level declarations with IdString and Wire terminology.
 
-#include <memory>
-#include <optional>
+#include <algorithm>
 #include <variant>
 #include <vector>
 
@@ -12,21 +11,20 @@
 
 namespace hdl::ast {
 
-struct NetEntity {
-    int mMsb = 0;
-    int mLsb = 0;
-    uint32_t width() const { return width_from_range(mMsb, mLsb); }
+struct NetDecl {
+    Expr mMsb = Expr::number(0);
+    Expr mLsb = Expr::number(0);
 };
 
 struct PortDecl {
     IdString mName;
     PortDirection mDir = PortDirection::In;
-    NetEntity mEnt;
+    NetDecl mNet;
 };
 
 struct WireDecl {
     IdString mName;
-    NetEntity mEnt;
+    NetDecl mNet;
 };
 
 struct ConnDecl {
@@ -53,20 +51,14 @@ struct GenIfDecl;
 struct GenForDecl;
 struct GenCaseDecl;
 
-using GenItem = std::variant<InstanceDecl, GenIfDecl, GenForDecl, GenCaseDecl>;
-
-struct GenBlock {
-    std::vector<GenItem> mItems;
-
-    bool empty() const { return mItems.empty(); }
-    void clear() { mItems.clear(); }
-};
+using GenBlock =
+  std::variant<InstanceDecl, GenIfDecl, GenForDecl, GenCaseDecl>;
 
 struct GenIfDecl {
     IdString mLabel;
     Expr mCond;
-    GenBlock mThen;
-    GenBlock mElse;
+    std::vector<GenBlock> mThenBlks;
+    std::vector<GenBlock> mElseBlks;
 };
 
 struct GenForDecl {
@@ -75,7 +67,7 @@ struct GenForDecl {
     Expr mStart;
     Expr mLimit;
     Expr mStep;
-    GenBlock mBody;
+    std::vector<GenBlock> mBlks;
 };
 
 struct GenCaseDecl {
@@ -83,7 +75,7 @@ struct GenCaseDecl {
         std::vector<Expr> mChoices;
         bool mIsDefault = false;
         IdString mLabel;
-        GenBlock mBody;
+        std::vector<GenBlock> mBlks;
     };
     IdString mLabel;
     Expr mExpr;
@@ -97,19 +89,9 @@ struct ModuleDecl {
     std::vector<WireDecl> mWires;
     std::vector<AssignStmt> mAssigns;
     std::vector<InstanceDecl> mInstances;
-    std::vector<GenForDecl> mGenFors;
-    std::vector<GenIfDecl> mGenIfs;
+    std::vector<GenBlock> mGenBlks;
 
-    const PortDecl* findPort(IdString n) const {
-        for (auto& p : mPorts)
-            if (p.mName == n) return &p;
-        return nullptr;
-    }
-    const WireDecl* findWire(IdString n) const {
-        for (auto& x : mWires)
-            if (x.mName == n) return &x;
-        return nullptr;
-    }
+    int findPortIndex(IdString n) const;
+    int findWireIndex(IdString n) const;
 };
-
 } // namespace hdl::ast

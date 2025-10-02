@@ -45,15 +45,15 @@ std::string BitMap::renderBit(const elab::ModuleSpec& spec, BitId g) const {
     const auto& r = mReverseMap[g];
     if (r.mKind == BitOwnerRef::Kind::Port) {
         const auto& p = spec.mPorts[r.mOwnerIndex];
-        int idx = (p.mEnt.mMsb >= p.mEnt.mLsb)
-                    ? (p.mEnt.mLsb + static_cast<int>(r.mBitOffset))
-                    : (p.mEnt.mLsb - static_cast<int>(r.mBitOffset));
+        int idx = (p.mNet.mMsb >= p.mNet.mLsb)
+                    ? (p.mNet.mLsb + static_cast<int>(r.mBitOffset))
+                    : (p.mNet.mLsb - static_cast<int>(r.mBitOffset));
         return "port " + p.mName.str() + "[" + std::to_string(idx) + "]";
     } else {
         const auto& w = spec.mWires[r.mOwnerIndex];
-        int idx = (w.mEnt.mMsb >= w.mEnt.mLsb)
-                    ? (w.mEnt.mLsb + static_cast<int>(r.mBitOffset))
-                    : (w.mEnt.mLsb - static_cast<int>(r.mBitOffset));
+        int idx = (w.mNet.mMsb >= w.mNet.mLsb)
+                    ? (w.mNet.mLsb + static_cast<int>(r.mBitOffset))
+                    : (w.mNet.mLsb - static_cast<int>(r.mBitOffset));
         return "wire " + w.mName.str() + "[" + std::to_string(idx) + "]";
     }
 }

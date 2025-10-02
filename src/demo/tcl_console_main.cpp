@@ -11,7 +11,9 @@ using namespace hdl::ast;
 using namespace hdl::elab;
 
 // Reuse the demo modules from your library for bootstrapping
-static NetEntity W(int msb, int lsb) { return NetEntity{msb, lsb}; }
+static NetDecl W(int msb, int lsb) {
+    return {Expr::number(msb), Expr::number(lsb)};
+}
 static PortDecl P(IdString n, PortDirection d, int msb, int lsb) {
     return PortDecl{n, d, W(msb, lsb)};
 }

@@ -11,10 +11,10 @@ using namespace hdl;
 using namespace hdl::ast;
 using namespace hdl::elab;
 
-static ast::NetEntity makeEnt(int msb, int lsb) {
-    ast::NetEntity e;
-    e.mMsb = msb;
-    e.mLsb = lsb;
+static NetDecl makeNet(int msb, int lsb) {
+    NetDecl e;
+    e.mMsb = Expr::number(msb);
+    e.mLsb = Expr::number(lsb);
     return e;
 }
 
@@ -23,14 +23,14 @@ static ast::PortDecl makePort(IdString name, PortDirection dir, int msb,
     ast::PortDecl p;
     p.mName = name;
     p.mDir = dir;
-    p.mEnt = makeEnt(msb, lsb);
+    p.mNet = makeNet(msb, lsb);
     return p;
 }
 
 static ast::WireDecl makeWire(IdString name, int msb, int lsb) {
     ast::WireDecl w;
     w.mName = name;
-    w.mEnt = makeEnt(msb, lsb);
+    w.mNet = makeNet(msb, lsb);
     return w;
 }
 
@@ -101,8 +101,8 @@ int main() {
         ast::ConnDecl c1{p_out, ast::Expr::id(w3)};
         uAx.mConns.push_back(std::move(c0));
         uAx.mConns.push_back(std::move(c1));
-        gi.mThen.mItems.push_back(std::move(uAx));
-        top.mGenIfs.push_back(std::move(gi));
+        gi.mThenBlks.push_back(std::move(uAx));
+        top.mGenBlks.push_back(std::move(gi));
     }
     {
         ast::GenForDecl gf;
@@ -118,8 +118,8 @@ int main() {
         ast::ConnDecl c1{p_out, ast::Expr::id(w1)};
         uAr.mConns.push_back(std::move(c0));
         uAr.mConns.push_back(std::move(c1));
-        gf.mBody.mItems.push_back(std::move(uAr));
-        top.mGenFors.push_back(std::move(gf));
+        gf.mBlks.push_back(std::move(uAr));
+        top.mGenBlks.push_back(std::move(gf));
     }
 
     // Build AST index

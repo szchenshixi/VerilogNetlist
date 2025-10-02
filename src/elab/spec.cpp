@@ -30,14 +30,14 @@ void ModuleSpec::dumpLayout(std::ostream& os) {
     for (size_t i = 0; i < mPorts.size(); ++i) {
         const auto& p = mPorts[i];
         os << "    [" << i << "] " << p.mName.str()
-           << " dir=" << to_string(p.mDir) << " range=[" << p.mEnt.mMsb << ":"
-           << p.mEnt.mLsb << "]" << " width=" << p.width() << "\n";
+           << " dir=" << to_string(p.mDir) << " range=[" << p.mNet.mMsb << ":"
+           << p.mNet.mLsb << "]" << " width=" << p.width() << "\n";
     }
     os << "  Wires:\n";
     for (size_t i = 0; i < mWires.size(); ++i) {
         const auto& w = mWires[i];
         os << "    [" << i << "] " << w.mName.str() << " range=["
-           << w.mEnt.mMsb << ":" << w.mEnt.mLsb << "]"
+           << w.mNet.mMsb << ":" << w.mNet.mLsb << "]"
            << " width=" << w.width() << "\n";
     }
 }

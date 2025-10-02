@@ -13,18 +13,22 @@
 #include "hdl/util/id_string.hpp"
 
 namespace hdl::elab {
-
+struct NetSpec {
+    int mMsb = 0;
+    int mLsb = 0;
+    uint32_t width() const { return width_from_range(mMsb, mLsb); }
+};
 struct PortSpec {
     IdString mName;
     PortDirection mDir = PortDirection::In;
-    ast::NetEntity mEnt; // range/width
-    uint32_t width() const { return mEnt.width(); }
+    NetSpec mNet; // range/width
+    uint32_t width() const { return mNet.width(); }
 };
 
 struct WireSpec {
     IdString mName;
-    ast::NetEntity mEnt;
-    uint32_t width() const { return mEnt.width(); }
+    NetSpec mNet;
+    uint32_t width() const { return mNet.width(); }
 };
 
 namespace hier {
@@ -69,7 +73,6 @@ struct ModuleSpec {
 };
 
 // Library keyed by "name#paramSig"
-using ModuleLibrary =
-  std::unordered_map<std::string, std::unique_ptr<ModuleSpec>>;
+using ModuleLibrary = std::unordered_map<std::string, ModuleSpec>;
 
 } // namespace hdl::elab

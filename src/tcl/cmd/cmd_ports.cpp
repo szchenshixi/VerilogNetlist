@@ -128,8 +128,8 @@ static int cmd_list_ports(Console& c, Tcl_Interp* ip, const Console::Args&) {
         for (size_t i = 0; i < s->mPorts.size(); ++i) {
             auto& p = s->mPorts[i];
             oss << "  [" << i << "] " << p.mName.str()
-                << " dir=" << to_string(p.mDir) << " [" << p.mEnt.mMsb << ":"
-                << p.mEnt.mLsb << "]\n";
+                << " dir=" << to_string(p.mDir) << " [" << p.mNet.mMsb << ":"
+                << p.mNet.mLsb << "]\n";
         }
     }
     Tcl_SetObjResult(ip, Tcl_NewStringObj(oss.str().c_str(), -1));

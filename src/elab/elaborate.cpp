@@ -91,37 +91,39 @@ static std::string buildPrefixedName(const std::vector<std::string>& stack,
     return prefix;
 }
 
-std::unique_ptr<ModuleSpec> elaborateModule(const ast::ModuleDecl& decl,
-                                            const ast::ParamEnv& paramEnv) {
-    auto spec = std::make_unique<ModuleSpec>();
-    spec->mName = decl.mName;
-    spec->mDecl = &decl;
-    spec->mParamEnv = paramEnv;
+ModuleSpec elaborateModule(const ast::ModuleDecl& decl,
+                           const ast::ParamEnv& paramEnv) {
+    ModuleSpec spec;
+    spec.mName = decl.mName;
+    spec.mDecl = &decl;
+    spec.mParamEnv = paramEnv;
 
     // Ports
-    spec->mPorts.reserve(decl.mPorts.size());
+    spec.mPorts.reserve(decl.mPorts.size());
     for (const auto& p : decl.mPorts) {
         PortSpec ps;
         ps.mName = p.mName;
         ps.mDir = p.mDir;
-        ps.mEnt = p.mEnt;
-        spec->mPortIndex.emplace(ps.mName,
-                                 static_cast<uint32_t>(spec->mPorts.size()));
-        spec->mPorts.push_back(ps);
+        ps.mNet.mMsb = exprToInt64(p.mNet.mMsb, paramEnv);
+        ps.mNet.mLsb = exprToInt64(p.mNet.mLsb, paramEnv);
+        spec.mPortIndex.emplace(ps.mName,
+                                static_cast<uint32_t>(spec.mPorts.size()));
+        spec.mPorts.push_back(ps);
     }
     // Wires
-    spec->mWires.reserve(decl.mWires.size());
+    spec.mWires.reserve(decl.mWires.size());
     for (const auto& w : decl.mWires) {
         WireSpec ws;
         ws.mName = w.mName;
-        ws.mEnt = w.mEnt;
-        spec->mWireIndex.emplace(ws.mName,
-                                 static_cast<uint32_t>(spec->mWires.size()));
-        spec->mWires.push_back(ws);
+        ws.mNet.mMsb = exprToInt64(w.mNet.mMsb, paramEnv);
+        ws.mNet.mLsb = exprToInt64(w.mNet.mLsb, paramEnv);
+        spec.mWireIndex.emplace(ws.mName,
+                                static_cast<uint32_t>(spec.mWires.size()));
+        spec.mWires.push_back(ws);
     }
 
     // Build bit map allocation
-    spec->mBitMap.build(*spec);
+    spec.mBitMap.build(spec);
     return spec;
 }
 
@@ -181,28 +183,28 @@ ModuleSpec& getOrCreateSpec(const ast::ModuleDecl& decl,
                             ModuleLibrary& lib) {
     std::string key = makeModuleKey(decl.mName.str(), paramEnv);
     auto it = lib.find(key);
-    if (it != lib.end()) return *it->second;
-    auto s = elaborateModule(decl, paramEnv);
-    ModuleSpec& ref = *s;
-    lib.emplace(key, std::move(s));
-    wireAssigns(ref);
-    return ref;
+    if (it != lib.end()) return it->second;
+    ModuleSpec ms = elaborateModule(decl, paramEnv);
+    lib.emplace(key, std::move(ms)); // ms is invalid now
+    wireAssigns(lib[key]);
+    return lib[key];
 }
 
-void expandGenerateBlock(const ModuleSpec& spec, const ast::GenBlock& block,
-                         const ast::ParamEnv& env,
-                         const std::vector<std::string>& nameStack,
-                         std::vector<ast::InstanceDecl>& out,
-                         std::ostream& diag);
+void expandGenBlk(const ModuleSpec& spec, const ast::GenBlock& block,
+                  const ast::ParamEnv& env,
+                  const std::vector<std::string>& nameStack,
+                  std::vector<ast::InstanceDecl>& out, std::ostream& diag);
 
 void expandGenIf(const ModuleSpec& spec, const ast::GenIfDecl& decl,
                  const ast::ParamEnv& env, std::vector<std::string> nameStack,
                  std::vector<ast::InstanceDecl>& out, std::ostream& diag) {
     int64_t cond = evalIntExpr(decl.mCond, env, &diag);
-    const ast::GenBlock& selected = (cond != 0) ? decl.mThen : decl.mElse;
-    if (selected.mItems.empty()) { return; }
+    const auto& selected = (cond != 0) ? decl.mThenBlks : decl.mElseBlks;
+    if (selected.empty()) { return; }
     if (decl.mLabel.valid()) { nameStack.push_back(decl.mLabel.str()); }
-    expandGenerateBlock(spec, selected, env, nameStack, out, diag);
+    for (auto& blk : selected) {
+        expandGenBlk(spec, blk, env, nameStack, out, diag);
+    }
 }
 
 void expandGenFor(const ModuleSpec& spec, const ast::GenForDecl& decl,
@@ -228,35 +230,34 @@ void expandGenFor(const ModuleSpec& spec, const ast::GenForDecl& decl,
 
         auto iterStack = nameStack;
         iterStack.push_back(label + "_" + std::to_string(iter));
-        expandGenerateBlock(spec, decl.mBody, iterEnv, iterStack, out, diag);
+        for (auto& blk : decl.mBlks) {
+            expandGenBlk(spec, blk, iterEnv, iterStack, out, diag);
+        }
     }
 }
 
-void expandGenerateBlock(const ModuleSpec& spec, const ast::GenBlock& block,
-                         const ast::ParamEnv& env,
-                         const std::vector<std::string>& nameStack,
-                         std::vector<ast::InstanceDecl>& out,
-                         std::ostream& diag) {
-    for (const auto& item : block.mItems) {
-        if (std::holds_alternative<ast::InstanceDecl>(item)) {
-            auto inst = std::get<ast::InstanceDecl>(item);
-            if (!nameStack.empty()) {
-                inst.mName =
-                  IdString(buildPrefixedName(nameStack, inst.mName.str()));
-            }
-            out.push_back(std::move(inst));
-        } else if (std::holds_alternative<ast::GenIfDecl>(item)) {
-            const auto& gi = std::get<ast::GenIfDecl>(item);
-            expandGenIf(spec, gi, env, nameStack, out, diag);
-        } else if (std::holds_alternative<ast::GenForDecl>(item)) {
-            const auto& gf = std::get<ast::GenForDecl>(item);
-            expandGenFor(spec, gf, env, nameStack, out, diag);
-        } else if (std::holds_alternative<ast::GenCaseDecl>(item)) {
-            const auto& gc = std::get<ast::GenCaseDecl>(item);
-            // expandGenCase(spec, gc, env, nameStack, out, diag);
-        } else {
-            std::cerr << "Error: Unknown GenItem type\n";
+void expandGenBlk(const ModuleSpec& spec, const ast::GenBlock& block,
+                  const ast::ParamEnv& env,
+                  const std::vector<std::string>& nameStack,
+                  std::vector<ast::InstanceDecl>& out, std::ostream& diag) {
+    if (std::holds_alternative<ast::InstanceDecl>(block)) {
+        auto inst = std::get<ast::InstanceDecl>(block);
+        if (!nameStack.empty()) {
+            inst.mName =
+              IdString(buildPrefixedName(nameStack, inst.mName.str()));
         }
+        out.push_back(std::move(inst));
+    } else if (std::holds_alternative<ast::GenIfDecl>(block)) {
+        const auto& gi = std::get<ast::GenIfDecl>(block);
+        expandGenIf(spec, gi, env, nameStack, out, diag);
+    } else if (std::holds_alternative<ast::GenForDecl>(block)) {
+        const auto& gf = std::get<ast::GenForDecl>(block);
+        expandGenFor(spec, gf, env, nameStack, out, diag);
+    } else if (std::holds_alternative<ast::GenCaseDecl>(block)) {
+        const auto& gc = std::get<ast::GenCaseDecl>(block);
+        // expandGenCase(spec, gc, env, nameStack, out, diag);
+    } else {
+        std::cerr << "Error: Unknown GenItem type\n";
     }
 }
 
@@ -270,12 +271,8 @@ static void expandGenerates(const ModuleSpec& spec,
 
     auto baseEnv = spec.mParamEnv;
 
-    for (const auto& g : decl.mGenIfs) {
-        expandGenIf(spec, g, baseEnv, /* nameStack */ {}, out, diag);
-    }
-
-    for (const auto& gf : decl.mGenFors) {
-        expandGenFor(spec, gf, baseEnv, /* nameStack */ {}, out, diag);
+    for (const auto& gb : decl.mGenBlks) {
+        expandGenBlk(spec, gb, baseEnv, /* nameStack */ {}, out, diag);
     }
 }
 

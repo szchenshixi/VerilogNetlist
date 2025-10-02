@@ -12,9 +12,8 @@ using namespace hdl::elab;
 
 // Helpers
 // Nets
-static NetEntity n(int msb, int lsb) {
-    NetEntity e{msb, lsb};
-    return e;
+static NetDecl n(int msb, int lsb) {
+    return {Expr::number(msb), Expr::number(lsb)};
 }
 
 TEST(IdString, Basic) {
@@ -33,18 +32,19 @@ TEST(Expr, WidthAndString) {
     IdString x("x");
     IdString y("y");
 
-    ModuleDecl m;
-    m.mName = M;
-    m.mPorts.push_back(PortDecl{x, PortDirection::In, n(7, 0)});
-    m.mWires.push_back(WireDecl{y, n(3, 0)});
+    ModuleDecl md;
+    md.mName = M;
+    md.mPorts.push_back(PortDecl{x, PortDirection::In, n(7, 0)});
+    md.mWires.push_back(WireDecl{y, n(3, 0)});
 
+    ModuleSpec ms = elaborateModule(md);
     auto id_x = Expr::id(x);
     auto id_y = Expr::id(y);
     auto s = Expr::slice(x, 5, 2);
     auto c = Expr::concat({s, id_y}); // MSB: x[5:2] (4), LSB: y[3:0] (4) => 8
-    EXPECT_EQ(exprBitWidth(id_x, m), 8u);
-    EXPECT_EQ(exprBitWidth(s, m), 4u);
-    EXPECT_EQ(exprBitWidth(c, m), 8u);
+    EXPECT_EQ(exprBitWidth(id_x, ms), 8u);
+    EXPECT_EQ(exprBitWidth(s, ms), 4u);
+    EXPECT_EQ(exprBitWidth(c, ms), 8u);
 
     std::string s_str = exprToString(s);
     EXPECT_EQ(s_str, "x[5:2]");
@@ -64,8 +64,7 @@ TEST(BitMap, AllocationAndReverse) {
     md.mPorts.push_back(PortDecl{q, PortDirection::Out, n(1, 0)}); // 2 bits
     md.mWires.push_back(WireDecl{w, n(7, 0)});                     // 8 bits
 
-    auto specPtr = elaborateModule(md, {});
-    ModuleSpec& spec = *specPtr;
+    ModuleSpec spec = elaborateModule(md);
     EXPECT_EQ(spec.mPorts.size(), 2u);
     EXPECT_EQ(spec.mWires.size(), 1u);
 
@@ -96,8 +95,7 @@ TEST(Connectivity, AliasAndNetId) {
     md.mName = M;
     md.mWires.push_back(WireDecl{a, n(1, 0)}); // 2b
     md.mWires.push_back(WireDecl{b, n(1, 0)}); // 2b
-    auto specPtr = elaborateModule(md, {});
-    ModuleSpec& spec = *specPtr;
+    ModuleSpec spec = elaborateModule(md);
 
     auto a0 = spec.wireBit(a, 0);
     auto b1 = spec.wireBit(b, 1);
@@ -117,8 +115,7 @@ TEST(Flatten, IdSliceConcat) {
     md.mName = M;
     md.mPorts.push_back(PortDecl{x, PortDirection::In, n(7, 0)});
     md.mWires.push_back(WireDecl{y, n(3, 0)});
-    auto specPtr = elaborateModule(md, {});
-    ModuleSpec& spec = *specPtr;
+    ModuleSpec spec = elaborateModule(md);
     FlattenContext fc(spec, nullptr);
 
     auto v_id = fc.flattenExpr(Expr::id(x));
@@ -152,8 +149,7 @@ TEST(Elab, AssignWiring) {
     auto rhs = Expr::concat({Expr::slice(in, 3, 0), Expr::slice(in, 7, 4)});
     md.mAssigns.push_back(AssignStmt{lhs, rhs});
 
-    auto specPtr = elaborateModule(md, {});
-    ModuleSpec& spec = *specPtr;
+    ModuleSpec spec = elaborateModule(md);
     wireAssigns(spec);
 
     // out[0] == in[4], out[7] == in[3]
@@ -209,24 +205,24 @@ TEST(Generate, IfAndFor) {
           A,
           {},
           {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}};
-        gi.mThen.mItems.push_back(x);
-        top.mGenIfs.push_back(gi);
+        gi.mThenBlks.push_back(std::move(x));
+        top.mGenBlks.push_back(std::move(gi));
     }
     // for i in [0,REPL)
     {
         GenForDecl gf;
         gf.mLabel = g_for;
         gf.mLoopVar = IdString("i");
-        gf.mStart = ast::Expr(ast::ConstExpr{0});
-        gf.mLimit = ast::Expr(ast::IdExpr{REPL});
-        gf.mStep = ast::Expr(ast::ConstExpr{1});
+        gf.mStart = ast::Expr::number(0);
+        gf.mLimit = ast::Expr::id(REPL);
+        gf.mStep = ast::Expr::number(1);
         InstanceDecl t{
           IdString("U"),
           A,
           {},
           {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}};
-        gf.mBody.mItems.push_back(t);
-        top.mGenFors.push_back(gf);
+        gf.mBlks.push_back(std::move(t));
+        top.mGenBlks.push_back(std::move(gf));
     }
 
     // Library
