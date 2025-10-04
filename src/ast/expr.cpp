@@ -40,7 +40,8 @@ uint32_t exprBitWidth(const Expr& e, const elab::ModuleSpec& m) {
             }
             return sum;
         } else if constexpr (std::is_same_v<T, SliceExpr>) {
-            return width_from_range(node.mMsb, node.mLsb);
+            if (!node.mMsb || !node.mLsb) return 0u;
+            return width_from_range(*node.mMsb, *node.mLsb);
         } else {
             return 0u;
         }
@@ -63,8 +64,15 @@ static void exprToStringImpl(const Expr& e, std::ostream& os) {
             }
             os << "}";
         } else if constexpr (std::is_same_v<T, SliceExpr>) {
-            os << node.mBaseId.str() << "[" << node.mMsb << ":" << node.mLsb
-               << "]";
+            if (!node.mMsb || !node.mLsb) {
+                os << "[?:?]";
+                return;
+            }
+            os << node.mBaseId.str() << "[";
+            exprToStringImpl(*node.mMsb, os);
+            os << ":";
+            exprToStringImpl(*node.mLsb, os);
+            os << "]";
         } else if constexpr (std::is_same_v<T, OpExpr>) {
             const auto operandCount = node.mOperands.size();
             if (operandCount == 0) return;
@@ -105,7 +113,7 @@ std::string exprToString(const Expr& e) {
     return oss.str();
 }
 
-int64_t exprToInt64(const Expr& e, const ParamEnv& p) {
+int64_t exprToInt64(const Expr& e, const ParamSpec& p) {
     return e.visit([&p](auto&& node) -> int64_t {
         using T = std::decay_t<decltype(node)>;
         if constexpr (std::is_same_v<T, IdExpr>) {
@@ -115,7 +123,7 @@ int64_t exprToInt64(const Expr& e, const ParamEnv& p) {
             return static_cast<int64_t>(node.mValue);
         } else if constexpr (std::is_same_v<T, ConcatExpr>) {
             struct BitWidthHelper {
-                const ParamEnv& env;
+                const ParamSpec& env;
 
                 static int valueBitWidth(int64_t v) {
                     if (v < 0) return 64;
@@ -147,8 +155,8 @@ int64_t exprToInt64(const Expr& e, const ParamEnv& p) {
                             }
                             return total;
                         } else if constexpr (std::is_same_v<U, SliceExpr>) {
-                            int width = sub.mMsb - sub.mLsb + 1;
-                            return width > 0 ? width : 0;
+                            if (!sub.mMsb || !sub.mLsb) return 0;
+                            return width_from_range(*sub.mMsb, *sub.mLsb);
                         } else if constexpr (std::is_same_v<U, OpExpr>) {
                             int maxWidth = 0;
                             for (const auto& operand : sub.mOperands) {
@@ -204,7 +212,8 @@ int64_t exprToInt64(const Expr& e, const ParamEnv& p) {
 
             if (node.mMsb < node.mLsb) { return 0; }
 
-            const int width = node.mMsb - node.mLsb + 1;
+            if (!node.mMsb || !node.mLsb) return 0;
+            const int64_t width = width_from_range(*node.mMsb, *node.mLsb);
             if (width <= 0) return 0;
 
             auto maskForWidth = [](int w) -> uint64_t {
@@ -219,7 +228,9 @@ int64_t exprToInt64(const Expr& e, const ParamEnv& p) {
                 return value >> static_cast<unsigned>(amount);
             };
 
-            const uint64_t shifted = safeShiftRight(baseValue, node.mLsb);
+            uint64_t lsb = 0;
+            if (node.mLsb) lsb = exprToInt64(*node.mLsb);
+            const uint64_t shifted = safeShiftRight(baseValue, lsb);
             return static_cast<int64_t>(shifted & maskForWidth(width));
         } else if constexpr (std::is_same_v<T, OpExpr>) {
             if (node.mOperands.empty()) return 0;

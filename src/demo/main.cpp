@@ -131,11 +131,11 @@ int main() {
     ModuleLibrary lib;
 
     // Elaborate A (no params)
-    auto envA = ParamEnv{};
+    auto envA = ParamSpec{};
     elab::ModuleSpec& A = getOrCreateSpec(modA, envA, lib);
 
     // Elaborate Top with defaults
-    auto envTop = ParamEnv{
+    auto envTop = ParamSpec{
       {DO_EXTRA, 1}, {REPL, 2}};
     elab::ModuleSpec& Top = getOrCreateSpec(top, envTop, lib);
 

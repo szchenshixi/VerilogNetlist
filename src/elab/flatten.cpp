@@ -2,6 +2,7 @@
 #include <cassert>
 
 #include "hdl/elab/flatten.hpp"
+#include "hdl/ast/expr.hpp"
 
 namespace hdl::elab {
 
@@ -56,10 +57,15 @@ BitVector FlattenContext::flattenSlice(const ast::SliceExpr& s) const {
         return {};
     }
 
-    int msb = s.mMsb, lsb = s.mLsb;
-    int lo = std::min(msb, lsb);
-    int hi = std::max(msb, lsb);
-    uint32_t width = static_cast<uint32_t>(hi - lo + 1);
+    if (!s.mMsb || !s.mLsb) {
+        error("Invalid slice: " + id.str());
+        return {};
+    }
+    int64_t msb = ast::exprToInt64(*s.mMsb);
+    int64_t lsb = ast::exprToInt64(*s.mLsb);
+    int64_t lo = std::min(msb, lsb);
+    int64_t hi = std::max(msb, lsb);
+    int64_t width = static_cast<int64_t>(hi - lo + 1);
 
     BitVector v;
     v.reserve(width);

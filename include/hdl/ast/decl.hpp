@@ -37,12 +37,12 @@ struct AssignStmt {
     Expr mRhs;
 };
 
-using ParamEnv = std::unordered_map<IdString, int64_t, IdString::Hash>;
+using ParamDecl = std::unordered_map<IdString, Expr, IdString::Hash>;
 
 struct InstanceDecl {
     IdString mName;
     IdString mTargetModule;
-    ParamEnv mParamOverrides;
+    ParamDecl mParamOverrides;
     std::vector<ConnDecl> mConns;
 };
 
@@ -84,7 +84,7 @@ struct GenCaseDecl {
 
 struct ModuleDecl {
     IdString mName;
-    ParamEnv mParams;
+    ParamSpec mParams;
     std::vector<PortDecl> mPorts;
     std::vector<WireDecl> mWires;
     std::vector<AssignStmt> mAssigns;

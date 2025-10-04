@@ -149,9 +149,8 @@ class Console {
 
     // Utilities (public so command files can reuse them)
     static std::string makeCmdLine(const std::string& sub, const Args& args);
-    static std::unordered_map<IdString, int64_t, IdString::Hash>
-    parseParamTokens(const std::vector<std::string>& toks, size_t startIdx,
-                     std::ostream& diag);
+    static ast::ParamSpec parseParamTokens(const std::vector<std::string>& toks,
+                                      size_t startIdx, std::ostream& diag);
 
     // Completions helpers (optional use)
     std::vector<std::string>
@@ -169,10 +168,8 @@ class Console {
 
     // Library helpers
     elab::ModuleSpec* getSpecByKey(IdString key);
-    elab::ModuleSpec* getOrElabByName(
-      IdString name,
-      const std::unordered_map<IdString, int64_t, IdString::Hash>& env,
-      IdString* outKey = nullptr);
+    elab::ModuleSpec* getOrElabByName(IdString name, const ast::ParamSpec& env,
+                                      IdString* outKey = nullptr);
     elab::ModuleSpec* currentPrimarySpec();
 
     bool resolvePortName(const elab::ModuleSpec& spec, const std::string& tok,

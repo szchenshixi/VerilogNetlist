@@ -295,9 +295,9 @@ std::string Console::makeCmdLine(const std::string& sub, const Args& args) {
     return oss.str();
 }
 
-ast::ParamEnv Console::parseParamTokens(const std::vector<std::string>& toks,
+ast::ParamSpec Console::parseParamTokens(const std::vector<std::string>& toks,
                                         size_t startIdx, std::ostream& diag) {
-    ast::ParamEnv env;
+    ast::ParamSpec env;
     for (size_t i = startIdx; i < toks.size(); ++i) {
         const std::string& t = toks[i];
         auto eq = t.find('=');
@@ -386,7 +386,7 @@ elab::ModuleSpec* Console::getSpecByKey(IdString key) {
     return &it->second;
 }
 elab::ModuleSpec* Console::getOrElabByName(IdString name,
-                                           const ast::ParamEnv& env,
+                                           const ast::ParamSpec& env,
                                            IdString* outKey) {
     auto itAst = mAstIndex.find(name);
     if (itAst == mAstIndex.end()) return nullptr;

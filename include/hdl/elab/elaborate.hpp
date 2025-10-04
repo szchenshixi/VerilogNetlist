@@ -14,12 +14,12 @@ namespace hdl::elab {
 // Make a canonical key for a module specialization (name + sorted params).
 std::string makeModuleKey(
   std::string_view nameText,
-  const std::unordered_map<IdString, int64_t, IdString::Hash>& params);
+  const ParamSpec& params);
 
 // Elaborate a module with a given parameter environment.
 ModuleSpec elaborateModule(
   const ast::ModuleDecl& decl,
-  const std::unordered_map<IdString, int64_t, IdString::Hash>& paramEnv = {});
+  const ParamSpec& paramEnv = {});
 
 // Apply continuous assigns to a module's BitMap connectivity.
 void wireAssigns(ModuleSpec& spec);
@@ -27,7 +27,7 @@ void wireAssigns(ModuleSpec& spec);
 // Build/lookup a ModuleSpec in the library (by param signature).
 ModuleSpec& getOrCreateSpec(
   const ast::ModuleDecl& decl,
-  const std::unordered_map<IdString, int64_t, IdString::Hash>& paramEnv,
+  const ParamSpec& paramEnv,
   ModuleLibrary& lib);
 
 // Link instances declared in spec.mDecl into spec.mInstances (incl. generate

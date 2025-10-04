@@ -250,7 +250,7 @@ TEST(Generate, IfAndFor) {
 }
 
 TEST(ModuleKey, MakeKey) {
-    std::unordered_map<IdString, int64_t, IdString::Hash> params{
+    ParamSpec params{
       {IdString("DO_EXTRA"), 1}, {IdString("REPL"), 2}};
     std::string key = makeModuleKey("Top", params);
     // Deterministic order: DO_EXTRA,REPL

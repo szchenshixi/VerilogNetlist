@@ -13,7 +13,7 @@
 
 namespace hdl::elab {
 
-static int64_t evalIntExpr(const ast::Expr& x, const ast::ParamEnv& params,
+static int64_t evalIntExpr(const ast::Expr& x, const ast::ParamSpec& params,
                            std::ostream* diag = nullptr) {
     return x.visit([&](const auto& node) -> int64_t {
         using T = std::decay_t<decltype(node)>;
@@ -40,8 +40,9 @@ static int64_t evalIntExpr(const ast::Expr& x, const ast::ParamEnv& params,
         } else if constexpr (std::is_same_v<T, ast::SliceExpr>) {
             if (diag) {
                 (*diag) << "ERROR: Int value evaluation is not supported in "
-                           "slice expression yet "
-                        << ast::exprToString(ast::Expr(node)) << "\n";
+                           "slice expression yet ";
+                // DEBUG:
+                // << ast::exprToString(ast::Expr(node)) << "\n";
             }
             return 0;
         } else {
@@ -55,7 +56,7 @@ static int64_t evalIntExpr(const ast::Expr& x, const ast::ParamEnv& params,
 }
 
 std::string makeModuleKey(std::string_view nameText,
-                          const ast::ParamEnv& params) {
+                          const ast::ParamSpec& params) {
     IdString name(nameText);
     std::vector<std::pair<std::string, int64_t>> v;
     v.reserve(params.size());
@@ -74,7 +75,7 @@ std::string makeModuleKey(std::string_view nameText,
     return oss.str();
 }
 
-static const ast::ParamEnv& defaultParamEnv(const ast::ModuleDecl& decl) {
+static const ast::ParamSpec& defaultParamEnv(const ast::ModuleDecl& decl) {
     return decl.mParams;
 }
 
@@ -92,7 +93,7 @@ static std::string buildPrefixedName(const std::vector<std::string>& stack,
 }
 
 ModuleSpec elaborateModule(const ast::ModuleDecl& decl,
-                           const ast::ParamEnv& paramEnv) {
+                           const ast::ParamSpec& paramEnv) {
     ModuleSpec spec;
     spec.mName = decl.mName;
     spec.mDecl = &decl;
@@ -108,7 +109,7 @@ ModuleSpec elaborateModule(const ast::ModuleDecl& decl,
         ps.mNet.mLsb = exprToInt64(p.mNet.mLsb, paramEnv);
         spec.mPortIndex.emplace(ps.mName,
                                 static_cast<uint32_t>(spec.mPorts.size()));
-        spec.mPorts.push_back(ps);
+        spec.mPorts.push_back(std::move(ps));
     }
     // Wires
     spec.mWires.reserve(decl.mWires.size());
@@ -119,7 +120,7 @@ ModuleSpec elaborateModule(const ast::ModuleDecl& decl,
         ws.mNet.mLsb = exprToInt64(w.mNet.mLsb, paramEnv);
         spec.mWireIndex.emplace(ws.mName,
                                 static_cast<uint32_t>(spec.mWires.size()));
-        spec.mWires.push_back(ws);
+        spec.mWires.push_back(std::move(ws));
     }
 
     // Build bit map allocation
@@ -179,7 +180,7 @@ void wireAssigns(ModuleSpec& spec) {
 }
 
 ModuleSpec& getOrCreateSpec(const ast::ModuleDecl& decl,
-                            const ast::ParamEnv& paramEnv,
+                            const ast::ParamSpec& paramEnv,
                             ModuleLibrary& lib) {
     std::string key = makeModuleKey(decl.mName.str(), paramEnv);
     auto it = lib.find(key);
@@ -191,12 +192,12 @@ ModuleSpec& getOrCreateSpec(const ast::ModuleDecl& decl,
 }
 
 void expandGenBlk(const ModuleSpec& spec, const ast::GenBlock& block,
-                  const ast::ParamEnv& env,
+                  const ast::ParamSpec& env,
                   const std::vector<std::string>& nameStack,
                   std::vector<ast::InstanceDecl>& out, std::ostream& diag);
 
 void expandGenIf(const ModuleSpec& spec, const ast::GenIfDecl& decl,
-                 const ast::ParamEnv& env, std::vector<std::string> nameStack,
+                 const ast::ParamSpec& env, std::vector<std::string> nameStack,
                  std::vector<ast::InstanceDecl>& out, std::ostream& diag) {
     int64_t cond = evalIntExpr(decl.mCond, env, &diag);
     const auto& selected = (cond != 0) ? decl.mThenBlks : decl.mElseBlks;
@@ -208,7 +209,8 @@ void expandGenIf(const ModuleSpec& spec, const ast::GenIfDecl& decl,
 }
 
 void expandGenFor(const ModuleSpec& spec, const ast::GenForDecl& decl,
-                  const ast::ParamEnv& env, std::vector<std::string> nameStack,
+                  const ast::ParamSpec& env,
+                  std::vector<std::string> nameStack,
                   std::vector<ast::InstanceDecl>& out, std::ostream& diag) {
     int64_t start = evalIntExpr(decl.mStart, env, &diag);
     int64_t limit = evalIntExpr(decl.mLimit, env, &diag);
@@ -225,7 +227,7 @@ void expandGenFor(const ModuleSpec& spec, const ast::GenForDecl& decl,
     int64_t iter = 0;
     for (int64_t val = start; (step > 0) ? (val < limit) : (val > limit);
          val += step, ++iter) {
-        ast::ParamEnv iterEnv = env;
+        ast::ParamSpec iterEnv = env;
         iterEnv[decl.mLoopVar] = val;
 
         auto iterStack = nameStack;
@@ -237,7 +239,7 @@ void expandGenFor(const ModuleSpec& spec, const ast::GenForDecl& decl,
 }
 
 void expandGenBlk(const ModuleSpec& spec, const ast::GenBlock& block,
-                  const ast::ParamEnv& env,
+                  const ast::ParamSpec& env,
                   const std::vector<std::string>& nameStack,
                   std::vector<ast::InstanceDecl>& out, std::ostream& diag) {
     if (std::holds_alternative<ast::InstanceDecl>(block)) {
@@ -300,7 +302,7 @@ void linkInstances(ModuleSpec& spec, const ASTIndex& astIndex,
         // Build parameter environment for callee: defaults + overrides
         auto calleeParams = defaultParamEnv(calleeDecl);
         for (const auto& [key, val] : idecl.mParamOverrides) {
-            calleeParams[key] = val;
+            calleeParams[key] = ast::exprToInt64(val);
         }
 
         // Get/Elaborate callee spec with parameters

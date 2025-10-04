@@ -21,6 +21,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 # hdl
 add_library(
   hdl STATIC
+  src/common.cpp
   src/ast/expr.cpp
   src/net/connectivity.cpp
   src/net/bitmap.cpp

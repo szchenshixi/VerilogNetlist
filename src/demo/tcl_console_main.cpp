@@ -77,7 +77,7 @@ int main() {
     }
 
     // Build the specialization key for Top with defaults so Console can find
-    auto topEnv = ParamEnv{{DO_EXTRA, 1}, {REPL, 2}};
+    auto topEnv = ParamSpec{{DO_EXTRA, 1}, {REPL, 2}};
     IdString topKey(elab::makeModuleKey(Top.str(), topEnv));
     if (console.getSpecByKey(topKey)) {
         console.selection().mModuleKeys.push_back(topKey);

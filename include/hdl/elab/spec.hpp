@@ -31,6 +31,8 @@ struct WireSpec {
     uint32_t width() const { return mNet.width(); }
 };
 
+using ParamSpec = std::unordered_map<IdString, int64_t, IdString::Hash>;
+
 namespace hier {
 struct PortBinding {
     uint32_t mFormalIndex = 0; // index into callee->mPorts
@@ -52,7 +54,7 @@ struct ModuleSpec {
     std::unordered_map<IdString, uint32_t, IdString::Hash> mPortIndex;
     std::unordered_map<IdString, uint32_t, IdString::Hash> mWireIndex;
 
-    std::unordered_map<IdString, int64_t, IdString::Hash> mParamEnv;
+    ParamSpec mParamEnv;
 
     net::BitMap mBitMap;
 
