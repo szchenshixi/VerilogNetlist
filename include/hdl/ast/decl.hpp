@@ -12,8 +12,8 @@
 namespace hdl::ast {
 
 struct NetDecl {
-    Expr mMsb = Expr::number(0);
-    Expr mLsb = Expr::number(0);
+    IntExpr mMsb = IntExpr::number(0);
+    IntExpr mLsb = IntExpr::number(0);
 };
 
 struct PortDecl {
@@ -29,20 +29,18 @@ struct WireDecl {
 
 struct ConnDecl {
     IdString mFormal; // port name in callee
-    Expr mActual;     // expression in caller module scope
+    BVExpr mActual;   // expression in caller module scope
 };
 
-struct AssignStmt {
-    Expr mLhs;
-    Expr mRhs;
+struct AssignDecl {
+    BVExpr mLhs;
+    BVExpr mRhs;
 };
-
-using ParamDecl = std::unordered_map<IdString, Expr, IdString::Hash>;
 
 struct InstanceDecl {
     IdString mName;
     IdString mTargetModule;
-    ParamDecl mParamOverrides;
+    ParamDecl mOverrides;
     std::vector<ConnDecl> mConns;
 };
 
@@ -51,45 +49,51 @@ struct GenIfDecl;
 struct GenForDecl;
 struct GenCaseDecl;
 
-using GenBlock =
+using GenBody =
   std::variant<InstanceDecl, GenIfDecl, GenForDecl, GenCaseDecl>;
 
 struct GenIfDecl {
     IdString mLabel;
-    Expr mCond;
-    std::vector<GenBlock> mThenBlks;
-    std::vector<GenBlock> mElseBlks;
+    IntExpr mCond;
+    std::vector<GenBody> mThenBlks;
+    std::vector<GenBody> mElseBlks;
 };
 
 struct GenForDecl {
     IdString mLabel;
     IdString mLoopVar;
-    Expr mStart;
-    Expr mLimit;
-    Expr mStep;
-    std::vector<GenBlock> mBlks;
+    IntExpr mStart;
+    IntExpr mLimit;
+    IntExpr mStep;
+    std::vector<GenBody> mBlks;
 };
 
 struct GenCaseDecl {
     struct Item {
-        std::vector<Expr> mChoices;
+        std::vector<IntExpr> mChoices;
         bool mIsDefault = false;
         IdString mLabel;
-        std::vector<GenBlock> mBlks;
+        std::vector<GenBody> mBlks;
     };
     IdString mLabel;
-    Expr mExpr;
+    IntExpr mExpr;
     std::vector<Item> mItems;
+};
+
+struct GenBlockDecl {
+    std::vector<InstanceDecl> mInstances;
+    std::vector<AssignDecl> mAssigns;
+    std::vector<NetDecl> mNets;
 };
 
 struct ModuleDecl {
     IdString mName;
-    ParamSpec mParams;
+    elab::ParamSpec mDefaults;
     std::vector<PortDecl> mPorts;
     std::vector<WireDecl> mWires;
-    std::vector<AssignStmt> mAssigns;
+    std::vector<AssignDecl> mAssigns;
     std::vector<InstanceDecl> mInstances;
-    std::vector<GenBlock> mGenBlks;
+    std::vector<GenBody> mGenBlks;
 
     int findPortIndex(IdString n) const;
     int findWireIndex(IdString n) const;

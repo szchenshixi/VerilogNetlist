@@ -12,31 +12,30 @@
 namespace hdl::elab {
 
 // Make a canonical key for a module specialization (name + sorted params).
-std::string makeModuleKey(
-  std::string_view nameText,
-  const ParamSpec& params);
+std::string makeModuleKey(std::string_view nameText, const ParamSpec& params);
 
 // Elaborate a module with a given parameter environment.
-ModuleSpec elaborateModule(
-  const ast::ModuleDecl& decl,
-  const ParamSpec& paramEnv = {});
+ModuleSpec elaborateModule(const ast::ModuleDecl& decl,
+                           const ParamSpec& paramEnv = {});
 
 // Apply continuous assigns to a module's BitMap connectivity.
 void wireAssigns(ModuleSpec& spec);
 
 // Build/lookup a ModuleSpec in the library (by param signature).
-ModuleSpec& getOrCreateSpec(
-  const ast::ModuleDecl& decl,
-  const ParamSpec& paramEnv,
-  ModuleLibrary& lib);
+ModuleSpec& getOrCreateSpec(const ast::ModuleDecl& decl,
+                            const ParamSpec& paramEnv, ModuleSpecLib& lib);
 
 // Link instances declared in spec.mDecl into spec.mInstances (incl. generate
 // expansion).
-using ASTIndex =
-  std::unordered_map<IdString, std::reference_wrapper<const ast::ModuleDecl>,
-                     IdString::Hash>;
-void linkInstances(ModuleSpec& spec, const ASTIndex& astIndex,
-                   ModuleLibrary& lib, std::ostream& diag);
+// using ModuleDeclLib =
+//   std::unordered_map<IdString, std::reference_wrapper<const
+//   ast::ModuleDecl>,
+//                      IdString::Hash>;
+
+using ModuleDeclLib =
+  std::unordered_map<IdString, const ast::ModuleDecl, IdString::Hash>;
+void linkInstances(ModuleSpec& spec, const ModuleDeclLib& declLib,
+                   ModuleSpecLib& specLib, std::ostream* diag);
 
 // Hierarchy dump using ModuleSpec -> ModuleInstance -> ModuleSpec pattern.
 namespace hier {

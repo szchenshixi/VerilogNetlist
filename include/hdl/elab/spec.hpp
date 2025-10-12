@@ -1,7 +1,6 @@
 #pragma once
 // Elaborated module spec: ports, wires, BitMap, instances.
 
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -16,7 +15,7 @@ namespace hdl::elab {
 struct NetSpec {
     int mMsb = 0;
     int mLsb = 0;
-    uint32_t width() const { return width_from_range(mMsb, mLsb); }
+    uint32_t width() const { return widthFromRange(mMsb, mLsb); }
 };
 struct PortSpec {
     IdString mName;
@@ -30,8 +29,6 @@ struct WireSpec {
     NetSpec mNet;
     uint32_t width() const { return mNet.width(); }
 };
-
-using ParamSpec = std::unordered_map<IdString, int64_t, IdString::Hash>;
 
 namespace hier {
 struct PortBinding {
@@ -54,7 +51,7 @@ struct ModuleSpec {
     std::unordered_map<IdString, uint32_t, IdString::Hash> mPortIndex;
     std::unordered_map<IdString, uint32_t, IdString::Hash> mWireIndex;
 
-    ParamSpec mParamEnv;
+    ParamSpec mEnv;
 
     net::BitMap mBitMap;
 
@@ -75,6 +72,5 @@ struct ModuleSpec {
 };
 
 // Library keyed by "name#paramSig"
-using ModuleLibrary = std::unordered_map<std::string, ModuleSpec>;
-
+using ModuleSpecLib = std::unordered_map<IdString, ModuleSpec, IdString::Hash>;
 } // namespace hdl::elab

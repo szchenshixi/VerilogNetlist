@@ -1,8 +1,9 @@
 #include <algorithm>
 #include <cassert>
 
-#include "hdl/elab/flatten.hpp"
 #include "hdl/ast/expr.hpp"
+#include "hdl/common.hpp"
+#include "hdl/elab/flatten.hpp"
 
 namespace hdl::elab {
 
@@ -47,7 +48,7 @@ BitVector FlattenContext::flattenNumber(uint64_t value, int width) const {
     return v;
 }
 
-BitVector FlattenContext::flattenSlice(const ast::SliceExpr& s) const {
+BitVector FlattenContext::flattenSlice(const ast::BVSlice& s) const {
     IdString id = s.mBaseId;
 
     int pIdx = mSpec.findPortIndex(id);
@@ -57,12 +58,8 @@ BitVector FlattenContext::flattenSlice(const ast::SliceExpr& s) const {
         return {};
     }
 
-    if (!s.mMsb || !s.mLsb) {
-        error("Invalid slice: " + id.str());
-        return {};
-    }
-    int64_t msb = ast::exprToInt64(*s.mMsb);
-    int64_t lsb = ast::exprToInt64(*s.mLsb);
+    int64_t msb = ast::evalIntExpr(s.mMsb, mSpec.mEnv);
+    int64_t lsb = ast::evalIntExpr(s.mLsb, mSpec.mEnv);
     int64_t lo = std::min(msb, lsb);
     int64_t hi = std::max(msb, lsb);
     int64_t width = static_cast<int64_t>(hi - lo + 1);
@@ -104,7 +101,7 @@ BitVector FlattenContext::flattenSlice(const ast::SliceExpr& s) const {
     return v; // LSB-first
 }
 
-BitVector FlattenContext::flattenConcat(const ast::ConcatExpr& c) const {
+BitVector FlattenContext::flattenConcat(const ast::BVConcat& c) const {
     BitVector res;
     for (int i = static_cast<int>(c.mParts.size()) - 1; i >= 0; --i) {
         BitVector part = flattenExpr(c.mParts[i]);
@@ -113,21 +110,26 @@ BitVector FlattenContext::flattenConcat(const ast::ConcatExpr& c) const {
     return res;
 }
 
-BitVector FlattenContext::flattenExpr(const ast::Expr& e) const {
+BitVector FlattenContext::flattenExpr(const ast::BVExpr& e) const {
     return e.visit([&](auto&& node) -> BitVector {
         using T = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<T, ast::IdExpr>) {
+        if constexpr (std::is_same_v<T, ast::BVId>) {
             return flattenId(node.mName);
-        } else if constexpr (std::is_same_v<T, ast::ConstExpr>) {
+        } else if constexpr (std::is_same_v<T, ast::BVConst>) {
             return flattenNumber(node.mValue, node.mWidth);
-        } else if constexpr (std::is_same_v<T, ast::ConcatExpr>) {
+        } else if constexpr (std::is_same_v<T, ast::BVConcat>) {
             return flattenConcat(node);
-        } else if constexpr (std::is_same_v<T, ast::SliceExpr>) {
+        } else if constexpr (std::is_same_v<T, ast::BVSlice>) {
             return flattenSlice(node);
         } else {
             return BitVector{};
         }
     });
 }
-
+void FlattenContext::warn(const std::string& msg) const {
+    ::hdl::warn(mDiag, msg);
+}
+void FlattenContext::error(const std::string& msg) const {
+    ::hdl::error(mDiag, msg);
+}
 } // namespace hdl::elab

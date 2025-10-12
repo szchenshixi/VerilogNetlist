@@ -1,114 +1,206 @@
 #pragma once
-// Expression AST using std::variant: IdExpr, ConstExpr, ConcatExpr, SliceExpr.
+// Expression AST using std::variant: BVId, BVConst, BVConcat, BVSlice.
 
 #include <cstdint>
-#include <memory>
 #include <variant>
 #include <vector>
 
+#include "hdl/common.hpp"
 #include "hdl/util/id_string.hpp"
 
 namespace hdl::elab {
+// Forward declaration
 struct ModuleSpec;
-}
+} // namespace hdl::elab
 namespace hdl::ast {
-struct Expr;
-struct IdExpr {
+//******************************************************************************
+// Front-end integer AST, e.g. genvar, parameter (only used before elaboration)
+//******************************************************************************
+// Int expressions are values that numerical values in math
+struct IntExpr;
+struct IntId {
     IdString mName;
 };
-struct ConstExpr {
+struct IntConst {
+    uint64_t mValue = 0;
+};
+
+struct IntOp {
+    enum class Type { Add, Sub };
+    Type mOp;
+    std::vector<IntExpr> mOperands;
+};
+
+struct IntExpr {
+    using Variant = std::variant<IntId, IntConst, IntOp>;
+    Variant mNode;
+
+    IntExpr() = default;
+    explicit IntExpr(Variant v)
+        : mNode(std::move(v)) {}
+
+    static IntExpr id(IdString n) { return IntExpr(IntId{n}); }
+    static IntExpr number(uint64_t v) { return IntExpr(IntConst{v}); }
+
+    static IntExpr unary(IntOp::Type op, const IntExpr& operand) {
+        std::vector<IntExpr> operands_t;
+        operands_t.push_back(operand); // Copy operand
+        return IntExpr{IntOp{op, std::move(operands_t)}};
+    }
+    static IntExpr unary(IntOp::Type op, IntExpr&& operand) {
+        std::vector<IntExpr> operands_t;
+        operands_t.push_back(std::move(operand));
+        return IntExpr{IntOp{op, std::move(operands_t)}};
+    }
+
+    static IntExpr binary(IntOp::Type op, const IntExpr& left,
+                          const IntExpr& right) {
+        std::vector<IntExpr> operands_t;
+        operands_t.reserve(2);
+        operands_t.push_back(left);  // Copy left
+        operands_t.push_back(right); // Copy right
+        return IntExpr{IntOp{op, std::move(operands_t)}};
+    }
+    static IntExpr binary(IntOp::Type op, IntExpr&& left, IntExpr&& right) {
+        std::vector<IntExpr> operands_t;
+        operands_t.reserve(2);
+        operands_t.push_back(std::move(left));
+        operands_t.push_back(std::move(right));
+        return IntExpr{IntOp{op, std::move(operands_t)}};
+    }
+
+    static IntExpr add(const IntExpr& left, const IntExpr& right) {
+        return binary(IntOp::Type::Add, left, right);
+    }
+    static IntExpr add(IntExpr&& left, IntExpr&& right) {
+        return binary(IntOp::Type::Add, std::move(left), std::move(right));
+    }
+    static IntExpr sub(const IntExpr& left, const IntExpr& right) {
+        return binary(IntOp::Type::Sub, left, right);
+    }
+    static IntExpr sub(IntExpr&& left, IntExpr&& right) {
+        return binary(IntOp::Type::Sub, std::move(left), std::move(right));
+    }
+
+    // Access methods
+    template <typename T>
+    bool is() const {
+        return std::holds_alternative<T>(mNode);
+    }
+    template <typename T>
+    const T& as() const {
+        return std::get<T>(mNode);
+    }
+
+    // Use example:
+    template <typename Visitor>
+    auto visit(Visitor&& vis) const {
+        return std::visit(std::forward<Visitor>(vis), mNode);
+    }
+};
+
+struct BVExpr;
+struct BVId {
+    IdString mName;
+};
+struct BVConst {
     uint64_t mValue = 0;
     int mWidth = 0;    // 0 => infer minimal
     std::string mText; // pretty
 };
-struct ConcatExpr {
+struct BVConcat {
     // Parts MSB -> LSB
-    std::vector<Expr> mParts;
+    std::vector<BVExpr> mParts;
 };
-struct SliceExpr {
+struct BVSlice {
     // Base must resolve to Id at elaboration; we store identifier directly.
     IdString mBaseId;
-    std::shared_ptr<Expr> mMsb;
-    std::shared_ptr<Expr> mLsb;
-    // std::unique_ptr<Expr> mMsb;
-    // std::unique_ptr<Expr> mLsb;
+    IntExpr mMsb;
+    IntExpr mLsb;
 };
 enum class OpType { Add, Sub };
-struct OpExpr {
+struct BVOp {
     OpType mOp;
-    std::vector<Expr> mOperands;
+    std::vector<BVExpr> mOperands;
 };
 
-struct Expr {
+struct BVExpr {
     using Variant =
-      std::variant<IdExpr, ConstExpr, ConcatExpr, SliceExpr, OpExpr>;
+      std::variant<BVId, BVConst, BVConcat, BVSlice, BVOp>;
     Variant mNode;
 
-    Expr() = default;
-    explicit Expr(Variant v)
+    BVExpr() = default;
+    explicit BVExpr(Variant v)
         : mNode(std::move(v)) {}
 
-    static Expr id(IdString n) { return Expr(IdExpr{n}); }
-    static Expr number(uint64_t v, int w = 0, const std::string& t = "") {
-        return Expr(ConstExpr{v, w, t});
+    static BVExpr id(IdString n) { return BVExpr(BVId{n}); }
+    static BVExpr number(uint64_t v, int w = 0, const std::string& t = "") {
+        return BVExpr(BVConst{v, w, t});
     }
-    static Expr concat(const std::vector<Expr>& parts) {
-        return Expr(ConcatExpr{parts}); // Copy the vector
+    static BVExpr concat(const std::vector<BVExpr>& parts) {
+        return BVExpr(BVConcat{parts}); // Copy the vector
     }
-    static Expr concat(std::vector<Expr>&& parts) {
-        return Expr(ConcatExpr{std::move(parts)});
+    static BVExpr concat(std::vector<BVExpr>&& parts) {
+        return BVExpr(BVConcat{std::move(parts)});
     }
-    static Expr slice(IdString baseId, int msb, int lsb) {
-        return slice(baseId, Expr::number(msb), Expr::number(lsb));
+    // Unary slice serves as index
+    static BVExpr slice(IdString baseId, int idx) {
+        return slice(baseId, IntExpr::number(idx), IntExpr::number(idx));
     }
-    static Expr slice(const IdString& baseId, const Expr& msb,
-                      const Expr& lsb) {
-        return Expr(SliceExpr{baseId,
-                              std::make_shared<Expr>(msb),   // Copy msb
-                              std::make_shared<Expr>(lsb)}); // Copy lsb
+    static BVExpr slice(const IdString& baseId, const IntExpr& idx) {
+        return BVExpr(BVSlice{baseId, idx, idx});
     }
-    static Expr slice(IdString baseId, Expr&& msb, Expr&& lsb) {
-        return Expr(SliceExpr{baseId,
-                              std::make_shared<Expr>(std::move(msb)),
-                              std::make_shared<Expr>(std::move(lsb))});
+    static BVExpr slice(IdString baseId, IntExpr&& idx) {
+        return BVExpr(BVSlice{baseId, idx, std::move(idx)});
+    }
+    // Binary slice
+    static BVExpr slice(IdString baseId, int msb, int lsb) {
+        return slice(baseId, IntExpr::number(msb), IntExpr::number(lsb));
+    }
+    static BVExpr slice(const IdString& baseId, const IntExpr& msb,
+                        const IntExpr& lsb) {
+        return BVExpr(BVSlice{baseId, msb, lsb});
+    }
+    static BVExpr slice(IdString baseId, IntExpr&& msb, IntExpr&& lsb) {
+        return BVExpr(BVSlice{baseId, std::move(msb), std::move(lsb)});
     }
 
-    static Expr unary(OpType op, const Expr& operand) {
-        std::vector<Expr> operands_t;
+    static BVExpr unary(OpType op, const BVExpr& operand) {
+        std::vector<BVExpr> operands_t;
         operands_t.push_back(operand); // Copy operand
-        return Expr{OpExpr{op, std::move(operands_t)}};
+        return BVExpr{BVOp{op, std::move(operands_t)}};
     }
-    static Expr unary(OpType op, Expr&& operand) {
-        std::vector<Expr> operands_t;
+    static BVExpr unary(OpType op, BVExpr&& operand) {
+        std::vector<BVExpr> operands_t;
         operands_t.push_back(std::move(operand));
-        return Expr{OpExpr{op, std::move(operands_t)}};
+        return BVExpr{BVOp{op, std::move(operands_t)}};
     }
 
-    static Expr binary(OpType op, const Expr& left, const Expr& right) {
-        std::vector<Expr> operands_t;
+    static BVExpr binary(OpType op, const BVExpr& left, const BVExpr& right) {
+        std::vector<BVExpr> operands_t;
         operands_t.reserve(2);
         operands_t.push_back(left);  // Copy left
         operands_t.push_back(right); // Copy right
-        return Expr{OpExpr{op, std::move(operands_t)}};
+        return BVExpr{BVOp{op, std::move(operands_t)}};
     }
-    static Expr binary(OpType op, Expr&& left, Expr&& right) {
-        std::vector<Expr> operands_t;
+    static BVExpr binary(OpType op, BVExpr&& left, BVExpr&& right) {
+        std::vector<BVExpr> operands_t;
         operands_t.reserve(2);
         operands_t.push_back(std::move(left));
         operands_t.push_back(std::move(right));
-        return Expr{OpExpr{op, std::move(operands_t)}};
+        return BVExpr{BVOp{op, std::move(operands_t)}};
     }
 
-    static Expr add(const Expr& left, const Expr& right) {
+    static BVExpr add(const BVExpr& left, const BVExpr& right) {
         return binary(OpType::Add, left, right);
     }
-    static Expr add(Expr&& left, Expr&& right) {
+    static BVExpr add(BVExpr&& left, BVExpr&& right) {
         return binary(OpType::Add, std::move(left), std::move(right));
     }
-    static Expr sub(const Expr& left, const Expr& right) {
+    static BVExpr sub(const BVExpr& left, const BVExpr& right) {
         return binary(OpType::Sub, left, right);
     }
-    static Expr sub(Expr&& left, Expr&& right) {
+    static BVExpr sub(BVExpr&& left, BVExpr&& right) {
         return binary(OpType::Sub, std::move(left), std::move(right));
     }
 
@@ -131,11 +223,12 @@ struct Expr {
 
 // Forward decl
 struct ModuleDecl;
-using ParamSpec = std::unordered_map<IdString, int64_t, IdString::Hash>;
 
 // Helpers implemented in src/ast/expr.cpp
-uint32_t exprBitWidth(const Expr& e, const elab::ModuleSpec& m);
-std::string exprToString(const Expr& e);
-int64_t exprToInt64(const Expr& e, const ParamSpec& p = {});
+std::string intExprToString(const IntExpr& e);
+int64_t evalIntExpr(const ast::IntExpr& x, const elab::ParamSpec& params,
+                    std::ostream* diag = nullptr);
 
+std::string bvExprToString(const BVExpr& e);
+uint32_t bvExprBitWidth(const BVExpr& e, const elab::ModuleSpec& m);
 } // namespace hdl::ast

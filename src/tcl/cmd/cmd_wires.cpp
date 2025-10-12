@@ -13,13 +13,13 @@ static int cmd_select_wire(Console& c, Tcl_Interp* ip,
           Tcl_NewStringObj("usage: select-wire <name|index> [specKey]", -1));
         return TCL_ERROR;
     }
-    hdl::IdString key =
-      (a.size() >= 2) ? hdl::IdString(a[1]) : c.selection().mPrimaryKey;
-    if (key == hdl::IdString()) {
+    hdl::IdString key = (a.size() >= 2) ? hdl::IdString::tryLookup(a[1])
+                                        : c.selection().mPrimaryKey;
+    if (!key.valid()) {
         Tcl_SetObjResult(ip, Tcl_NewStringObj("no module context", -1));
         return TCL_ERROR;
     }
-    auto* s = c.getSpecByKey(key);
+    auto* s = c.getSpecByKey(key.str());
     if (!s) {
         Tcl_SetObjResult(ip, Tcl_NewStringObj("unknown specKey", -1));
         return TCL_ERROR;
@@ -52,9 +52,9 @@ static std::vector<std::string> rev_select_wire(Console& c, const std::string&,
     std::vector<std::string> inv;
     if (a.empty()) return inv;
     hdl::IdString key =
-      (a.size() >= 2) ? hdl::IdString(a[1]) : pre.mPrimaryKey;
-    if (key == hdl::IdString()) return inv;
-    auto* s = c.getSpecByKey(key);
+      (a.size() >= 2) ? hdl::IdString::tryLookup(a[1]) : pre.mPrimaryKey;
+    if (!key.valid()) return inv;
+    auto* s = c.getSpecByKey(key.str());
     if (!s) return inv;
     hdl::IdString wname;
     if (!c.resolveWireName(*s, a[0], wname)) return inv;
@@ -64,8 +64,7 @@ static std::vector<std::string> rev_select_wire(Console& c, const std::string&,
             was = true;
             break;
         }
-    if (!was)
-        inv.push_back("unselect-wire " + wname.str() + " " + key.str());
+    if (!was) inv.push_back("unselect-wire " + wname.str() + " " + key.str());
     return inv;
 }
 
@@ -74,13 +73,12 @@ static int cmd_unselect_wire(Console& c, Tcl_Interp* ip,
     if (a.empty()) {
         Tcl_SetObjResult(
           ip,
-          Tcl_NewStringObj("usage: unselect-wire <name|index> [specKey]",
-                           -1));
+          Tcl_NewStringObj("usage: unselect-wire <name|index> [specKey]", -1));
         return TCL_ERROR;
     }
-    hdl::IdString key =
-      (a.size() >= 2) ? hdl::IdString(a[1]) : c.selection().mPrimaryKey;
-    auto* s = c.getSpecByKey(key);
+    hdl::IdString key = (a.size() >= 2) ? hdl::IdString::tryLookup(a[1])
+                                        : c.selection().mPrimaryKey;
+    auto* s = c.getSpecByKey(key.str());
     if (!s) {
         Tcl_SetObjResult(ip, Tcl_NewStringObj("unknown specKey", -1));
         return TCL_ERROR;
@@ -102,9 +100,9 @@ static std::vector<std::string> rev_unselect_wire(Console& c,
     std::vector<std::string> inv;
     if (a.empty()) return inv;
     hdl::IdString key =
-      (a.size() >= 2) ? hdl::IdString(a[1]) : pre.mPrimaryKey;
-    if (key == hdl::IdString()) return inv;
-    auto* s = c.getSpecByKey(key);
+      (a.size() >= 2) ? hdl::IdString::tryLookup(a[1]) : pre.mPrimaryKey;
+    if (!key.valid()) return inv;
+    auto* s = c.getSpecByKey(key.str());
     if (!s) return inv;
     hdl::IdString wname;
     if (!c.resolveWireName(*s, a[0], wname)) return inv;
@@ -123,7 +121,7 @@ static int cmd_list_wires(Console& c, Tcl_Interp* ip, const Console::Args&) {
     }
     std::ostringstream oss;
     for (auto& key : c.selection().mModuleKeys) {
-        auto* s = c.getSpecByKey(key);
+        auto* s = c.getSpecByKey(key.str());
         if (!s) continue;
         oss << "Module " << key.str() << ":\n";
         for (size_t i = 0; i < s->mWires.size(); ++i) {
@@ -148,7 +146,8 @@ void register_cmd_wires(Console& c) {
                       &cmd_unselect_wire,
                       nullptr,
                       &rev_unselect_wire);
-    c.registerCommand(
-      "list-wires", "List wires of selected modules: list-wires", &cmd_list_wires);
+    c.registerCommand("list-wires",
+                      "List wires of selected modules: list-wires",
+                      &cmd_list_wires);
 }
 } // namespace hdl::tcl

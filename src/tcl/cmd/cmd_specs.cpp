@@ -7,7 +7,7 @@ using hdl::tcl::Console;
 
 static int cmd_modules(Console& c, Tcl_Interp* ip, const Console::Args&) {
     std::ostringstream oss;
-    for (auto& kv : c.astIndex()) {
+    for (auto& kv : c.declLib()) {
         oss << kv.first.str() << "\n";
     }
     Tcl_SetObjResult(ip, Tcl_NewStringObj(oss.str().c_str(), -1));
@@ -24,8 +24,9 @@ static std::vector<std::string> compl_modules(Console& c,
 
 static int cmd_specs(Console& c, Tcl_Interp* ip, const Console::Args&) {
     std::ostringstream oss;
-    for (auto& kv : c.lib())
-        oss << kv.first << "\n";
+    for (auto& kv : c.specLib()) {
+        oss << kv.first.str() << "\n";
+    }
     Tcl_SetObjResult(ip, Tcl_NewStringObj(oss.str().c_str(), -1));
     return TCL_OK;
 }

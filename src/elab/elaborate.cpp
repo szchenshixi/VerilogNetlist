@@ -2,62 +2,19 @@
 #include <cassert>
 #include <iostream>
 #include <sstream>
-#include <type_traits>
 #include <variant>
 
 #include "hdl/ast/decl.hpp"
 #include "hdl/ast/expr.hpp"
+#include "hdl/common.hpp"
 #include "hdl/elab/elaborate.hpp"
 #include "hdl/elab/spec.hpp"
 #include "hdl/util/id_string.hpp"
 
 namespace hdl::elab {
 
-static int64_t evalIntExpr(const ast::Expr& x, const ast::ParamSpec& params,
-                           std::ostream* diag = nullptr) {
-    return x.visit([&](const auto& node) -> int64_t {
-        using T = std::decay_t<decltype(node)>;
-        if constexpr (std::is_same_v<T, ast::IdExpr>) {
-            IdString n = node.mName;
-            auto it = params.find(n);
-            if (it == params.end()) {
-                if (diag) {
-                    (*diag) << "ERROR: Unknown parameter '" << n.str()
-                            << "' in IntExpr\n";
-                }
-                return 0;
-            }
-            return it->second;
-        } else if constexpr (std::is_same_v<T, ast::ConstExpr>) {
-            return static_cast<int64_t>(node.mValue);
-        } else if constexpr (std::is_same_v<T, ast::ConcatExpr>) {
-            if (diag) {
-                (*diag) << "ERROR: Int value evaluation is not supported in "
-                           "concat expression yet "
-                        << ast::exprToString(ast::Expr(node)) << "\n";
-            }
-            return 0;
-        } else if constexpr (std::is_same_v<T, ast::SliceExpr>) {
-            if (diag) {
-                (*diag) << "ERROR: Int value evaluation is not supported in "
-                           "slice expression yet ";
-                // DEBUG:
-                // << ast::exprToString(ast::Expr(node)) << "\n";
-            }
-            return 0;
-        } else {
-            if (diag) {
-                (*diag) << "ERROR: Unknown expression type in int value "
-                           "evaluation\n";
-            }
-            return 0;
-        }
-    });
-}
-
 std::string makeModuleKey(std::string_view nameText,
-                          const ast::ParamSpec& params) {
-    IdString name(nameText);
+                          const elab::ParamSpec& params) {
     std::vector<std::pair<std::string, int64_t>> v;
     v.reserve(params.size());
     for (auto& kv : params) {
@@ -66,17 +23,13 @@ std::string makeModuleKey(std::string_view nameText,
     std::sort(
       v.begin(), v.end(), [](auto& a, auto& b) { return a.first < b.first; });
     std::ostringstream oss;
-    oss << name.str();
+    oss << nameText;
     if (!v.empty()) oss << "#";
     for (size_t i = 0; i < v.size(); ++i) {
         oss << v[i].first << "=" << v[i].second;
         if (i + 1 < v.size()) oss << ",";
     }
     return oss.str();
-}
-
-static const ast::ParamSpec& defaultParamEnv(const ast::ModuleDecl& decl) {
-    return decl.mParams;
 }
 
 static std::string buildPrefixedName(const std::vector<std::string>& stack,
@@ -93,11 +46,12 @@ static std::string buildPrefixedName(const std::vector<std::string>& stack,
 }
 
 ModuleSpec elaborateModule(const ast::ModuleDecl& decl,
-                           const ast::ParamSpec& paramEnv) {
+                           const elab::ParamSpec& overrides) {
     ModuleSpec spec;
     spec.mName = decl.mName;
     spec.mDecl = &decl;
-    spec.mParamEnv = paramEnv;
+    spec.mEnv = decl.mDefaults;
+    update(spec.mEnv, overrides);
 
     // Ports
     spec.mPorts.reserve(decl.mPorts.size());
@@ -105,8 +59,8 @@ ModuleSpec elaborateModule(const ast::ModuleDecl& decl,
         PortSpec ps;
         ps.mName = p.mName;
         ps.mDir = p.mDir;
-        ps.mNet.mMsb = exprToInt64(p.mNet.mMsb, paramEnv);
-        ps.mNet.mLsb = exprToInt64(p.mNet.mLsb, paramEnv);
+        ps.mNet.mMsb = ast::evalIntExpr(p.mNet.mMsb, overrides);
+        ps.mNet.mLsb = ast::evalIntExpr(p.mNet.mLsb, overrides);
         spec.mPortIndex.emplace(ps.mName,
                                 static_cast<uint32_t>(spec.mPorts.size()));
         spec.mPorts.push_back(std::move(ps));
@@ -116,8 +70,8 @@ ModuleSpec elaborateModule(const ast::ModuleDecl& decl,
     for (const auto& w : decl.mWires) {
         WireSpec ws;
         ws.mName = w.mName;
-        ws.mNet.mMsb = exprToInt64(w.mNet.mMsb, paramEnv);
-        ws.mNet.mLsb = exprToInt64(w.mNet.mLsb, paramEnv);
+        ws.mNet.mMsb = ast::evalIntExpr(w.mNet.mMsb, overrides);
+        ws.mNet.mLsb = ast::evalIntExpr(w.mNet.mLsb, overrides);
         spec.mWireIndex.emplace(ws.mName,
                                 static_cast<uint32_t>(spec.mWires.size()));
         spec.mWires.push_back(std::move(ws));
@@ -156,8 +110,8 @@ void wireAssigns(ModuleSpec& spec) {
         if (L.size() != R.size()) {
             std::cerr << "ERROR: assign width mismatch in module "
                       << spec.mName.str()
-                      << " (lhs=" << ast::exprToString(asg.mLhs)
-                      << ", rhs=" << ast::exprToString(asg.mRhs) << ")\n";
+                      << " (lhs=" << ast::bvExprToString(asg.mLhs)
+                      << ", rhs=" << ast::bvExprToString(asg.mRhs) << ")\n";
             continue;
         }
         for (size_t i = 0; i < L.size(); ++i) {
@@ -180,26 +134,29 @@ void wireAssigns(ModuleSpec& spec) {
 }
 
 ModuleSpec& getOrCreateSpec(const ast::ModuleDecl& decl,
-                            const ast::ParamSpec& paramEnv,
-                            ModuleLibrary& lib) {
-    std::string key = makeModuleKey(decl.mName.str(), paramEnv);
-    auto it = lib.find(key);
-    if (it != lib.end()) return it->second;
-    ModuleSpec ms = elaborateModule(decl, paramEnv);
-    lib.emplace(key, std::move(ms)); // ms is invalid now
-    wireAssigns(lib[key]);
-    return lib[key];
+                            const elab::ParamSpec& overrides,
+                            ModuleSpecLib& specLib) {
+    elab::ParamSpec env = decl.mDefaults;
+    update(/* out */ env, overrides);
+    IdString key(makeModuleKey(decl.mName.str(), env));
+    auto it = specLib.find(key);
+    if (it != specLib.end()) return it->second;
+    ModuleSpec ms = elaborateModule(decl, env);
+    specLib.emplace(key, std::move(ms)); // ms is invalid now
+    wireAssigns(specLib[key]);
+    return specLib[key];
 }
 
-void expandGenBlk(const ModuleSpec& spec, const ast::GenBlock& block,
-                  const ast::ParamSpec& env,
+void expandGenBlk(const ModuleSpec& spec, const ast::GenBody& block,
+                  const elab::ParamSpec& env,
                   const std::vector<std::string>& nameStack,
-                  std::vector<ast::InstanceDecl>& out, std::ostream& diag);
+                  std::vector<ast::InstanceDecl>& out, std::ostream* diag);
 
 void expandGenIf(const ModuleSpec& spec, const ast::GenIfDecl& decl,
-                 const ast::ParamSpec& env, std::vector<std::string> nameStack,
-                 std::vector<ast::InstanceDecl>& out, std::ostream& diag) {
-    int64_t cond = evalIntExpr(decl.mCond, env, &diag);
+                 const elab::ParamSpec& env,
+                 std::vector<std::string> nameStack,
+                 std::vector<ast::InstanceDecl>& out, std::ostream* diag) {
+    int64_t cond = evalIntExpr(decl.mCond, env, diag);
     const auto& selected = (cond != 0) ? decl.mThenBlks : decl.mElseBlks;
     if (selected.empty()) { return; }
     if (decl.mLabel.valid()) { nameStack.push_back(decl.mLabel.str()); }
@@ -209,14 +166,14 @@ void expandGenIf(const ModuleSpec& spec, const ast::GenIfDecl& decl,
 }
 
 void expandGenFor(const ModuleSpec& spec, const ast::GenForDecl& decl,
-                  const ast::ParamSpec& env,
+                  const elab::ParamSpec& env,
                   std::vector<std::string> nameStack,
-                  std::vector<ast::InstanceDecl>& out, std::ostream& diag) {
-    int64_t start = evalIntExpr(decl.mStart, env, &diag);
-    int64_t limit = evalIntExpr(decl.mLimit, env, &diag);
-    int64_t step = evalIntExpr(decl.mStep, env, &diag);
+                  std::vector<ast::InstanceDecl>& out, std::ostream* diag) {
+    int64_t start = evalIntExpr(decl.mStart, env, diag);
+    int64_t limit = evalIntExpr(decl.mLimit, env, diag);
+    int64_t step = evalIntExpr(decl.mStep, env, diag);
     if (step == 0) {
-        diag << "ERROR: gen-for step is zero in " << spec.mName.str() << "\n";
+        error(diag, "gen-for step is zero in " + spec.mName.str());
         return;
     }
     if ((step > 0 && start >= limit) || (step < 0 && start <= limit)) {
@@ -227,7 +184,7 @@ void expandGenFor(const ModuleSpec& spec, const ast::GenForDecl& decl,
     int64_t iter = 0;
     for (int64_t val = start; (step > 0) ? (val < limit) : (val > limit);
          val += step, ++iter) {
-        ast::ParamSpec iterEnv = env;
+        elab::ParamSpec iterEnv = env;
         iterEnv[decl.mLoopVar] = val;
 
         auto iterStack = nameStack;
@@ -238,10 +195,10 @@ void expandGenFor(const ModuleSpec& spec, const ast::GenForDecl& decl,
     }
 }
 
-void expandGenBlk(const ModuleSpec& spec, const ast::GenBlock& block,
-                  const ast::ParamSpec& env,
+void expandGenBlk(const ModuleSpec& spec, const ast::GenBody& block,
+                  const elab::ParamSpec& env,
                   const std::vector<std::string>& nameStack,
-                  std::vector<ast::InstanceDecl>& out, std::ostream& diag) {
+                  std::vector<ast::InstanceDecl>& out, std::ostream* diag) {
     if (std::holds_alternative<ast::InstanceDecl>(block)) {
         auto inst = std::get<ast::InstanceDecl>(block);
         if (!nameStack.empty()) {
@@ -266,20 +223,20 @@ void expandGenBlk(const ModuleSpec& spec, const ast::GenBlock& block,
 static void expandGenerates(const ModuleSpec& spec,
                             const ast::ModuleDecl& decl,
                             std::vector<ast::InstanceDecl>& out,
-                            std::ostream& diag) {
+                            std::ostream* diag) {
     for (const auto& inst : decl.mInstances) {
         out.push_back(inst);
     }
 
-    auto baseEnv = spec.mParamEnv;
+    auto baseEnv = spec.mEnv;
 
     for (const auto& gb : decl.mGenBlks) {
         expandGenBlk(spec, gb, baseEnv, /* nameStack */ {}, out, diag);
     }
 }
 
-void linkInstances(ModuleSpec& spec, const ASTIndex& astIndex,
-                   ModuleLibrary& lib, std::ostream& diag) {
+void linkInstances(ModuleSpec& spec, const ModuleDeclLib& declLib,
+                   ModuleSpecLib& spceLib, std::ostream* diag) {
     spec.mInstances.clear();
     if (!spec.mDecl) return;
 
@@ -289,46 +246,55 @@ void linkInstances(ModuleSpec& spec, const ASTIndex& astIndex,
 
     // Bind each instance
     for (const auto& idecl : flatInsts) {
-        // Find callee AST
-        auto itAst = astIndex.find(idecl.mTargetModule);
-        if (itAst == astIndex.end()) {
-            diag << "ERROR: Unknown module '" << idecl.mTargetModule.str()
-                 << "' for instance " << idecl.mName.str() << " in module "
-                 << spec.mName.str() << "\n";
+        auto it = declLib.find(idecl.mTargetModule);
+        if (it == declLib.end()) {
+            error(diag,
+                  "unknown module '" + idecl.mTargetModule.str() +
+                    "' for instance " + idecl.mName.str() + " in module " +
+                    spec.mName.str());
             continue;
         }
-        const ast::ModuleDecl& calleeDecl = itAst->second.get();
+        const ast::ModuleDecl& calleeDecl = it->second;
 
         // Build parameter environment for callee: defaults + overrides
-        auto calleeParams = defaultParamEnv(calleeDecl);
-        for (const auto& [key, val] : idecl.mParamOverrides) {
-            calleeParams[key] = ast::exprToInt64(val);
+        elab::ParamSpec calleeParams = calleeDecl.mDefaults;
+        for (const auto& [key, val] : idecl.mOverrides) {
+            if (auto it = calleeDecl.mDefaults.find(key);
+                it == calleeDecl.mDefaults.end()) {
+                warn(diag,
+                     "unknown parameter in instance declare " +
+                       idecl.mName.str() + ":" + key.str());
+            }
+            calleeParams[key] = ast::evalIntExpr(val, spec.mEnv);
         }
 
         // Get/Elaborate callee spec with parameters
-        ModuleSpec& callee = getOrCreateSpec(calleeDecl, calleeParams, lib);
+        ModuleSpec& callee =
+          getOrCreateSpec(calleeDecl, calleeParams, spceLib);
 
         // Create ModuleInstance with port bindings
         hier::ModuleInstance inst;
         inst.mName = idecl.mName;
         inst.mCallee = &callee;
 
-        FlattenContext fc(spec, &diag);
+        FlattenContext fc(spec, diag);
         for (const auto& c : idecl.mConns) {
             int formalIdx = callee.findPortIndex(c.mFormal);
             if (formalIdx < 0) {
-                diag << "ERROR: Unknown formal port '" << c.mFormal.str()
-                     << "' on instance " << idecl.mName.str() << " in module "
-                     << spec.mName.str() << "\n";
+                error(diag,
+                      "unknown formal port '" + c.mFormal.str() +
+                        "' on instance " + idecl.mName.str() + " in module " +
+                        spec.mName.str());
                 continue;
             }
             uint32_t Wf = callee.mPorts[formalIdx].width();
             BitVector actual = fc.flattenExpr(c.mActual);
             if (actual.size() != Wf) {
-                diag << "ERROR: Width mismatch binding " << idecl.mName.str()
-                     << "." << c.mFormal.str() << " Wf=" << Wf
-                     << " Wa=" << actual.size()
-                     << " actual=" << ast::exprToString(c.mActual) << "\n";
+                error(diag,
+                      "width mismatch binding " + idecl.mName.str() + "." +
+                        c.mFormal.str() + " Wf=" + std::to_string(Wf) +
+                        " Wa=" + std::to_string(actual.size()) +
+                        " actual=" + ast::bvExprToString(c.mActual));
                 continue;
             }
             inst.mConnections.push_back(hier::PortBinding{
@@ -403,31 +369,26 @@ bool makePinKey(const ModuleSpec& top, const ScopeId& scope, IdString portName,
     for (size_t depth = 0; depth < scope.mPath.size(); ++depth) {
         uint32_t idx = scope.mPath[depth];
         if (idx >= cur->mInstances.size()) {
-            if (diag) {
-                (*diag) << "ERROR: Scope path index " << idx
-                        << " out of range at depth " << depth << "\n";
-            }
+            error(diag,
+                  "scope path index " + std::to_string(idx) +
+                    " out of range at depth " + std::to_string(depth));
             return false;
         }
         const auto& inst = cur->mInstances[idx];
         if (!inst.mCallee) {
-            if (diag) {
-                (*diag) << "ERROR: Null callee at depth " << depth << "\n";
-            }
+            error(diag, "null callee at depth " + std::to_string(depth));
             return false;
         }
         cur = inst.mCallee;
     }
     int pIdx = cur->findPortIndex(portName);
     if (pIdx < 0) {
-        if (diag) { (*diag) << "ERROR: No such port in module\n"; }
+        error(diag, "no such port in module");
         return false;
     }
     out.mScope = scope;
     out.mPortIndex = static_cast<uint32_t>(pIdx);
     return true;
 }
-
 } // namespace hier
-
 } // namespace hdl::elab

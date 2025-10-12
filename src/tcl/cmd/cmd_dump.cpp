@@ -12,7 +12,7 @@ static int cmd_dump_layout(Console& c, Tcl_Interp* ip, const Console::Args&) {
     }
     std::ostringstream oss;
     for (auto& key : c.selection().mModuleKeys) {
-        if (auto* s = c.getSpecByKey(key)) {
+        if (auto* s = c.getSpecByKey(key.str())) {
             oss << "=== " << key.str() << " ===\n";
             s->dumpLayout(oss);
         }
@@ -28,7 +28,7 @@ static int cmd_dump_connectivity(Console& c, Tcl_Interp* ip,
     }
     std::ostringstream oss;
     for (auto& key : c.selection().mModuleKeys) {
-        if (auto* s = c.getSpecByKey(key)) {
+        if (auto* s = c.getSpecByKey(key.str())) {
             oss << "=== " << key.str() << " ===\n";
             s->dumpConnectivity(oss);
         }
@@ -44,7 +44,7 @@ static int cmd_dump_hierarchy(Console& c, Tcl_Interp* ip,
     }
     std::ostringstream oss;
     for (auto& key : c.selection().mModuleKeys) {
-        auto* s = c.getSpecByKey(key);
+        auto* s = c.getSpecByKey(key.str());
         if (!s) continue;
         oss << "=== " << key.str() << " ===\n";
         hdl::elab::hier::dumpInstanceTree(*s, oss);

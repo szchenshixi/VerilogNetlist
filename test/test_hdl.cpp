@@ -1,19 +1,32 @@
+#include <type_traits>
+
+#include <gtest/gtest.h>
+
 #include "hdl/ast/decl.hpp"
 #include "hdl/ast/expr.hpp"
 #include "hdl/elab/elaborate.hpp"
 #include "hdl/elab/flatten.hpp"
 #include "hdl/elab/spec.hpp"
 #include "hdl/util/id_string.hpp"
-#include <gtest/gtest.h>
 
 using namespace hdl;
 using namespace hdl::ast;
 using namespace hdl::elab;
 
 // Helpers
+template <typename T>
+constexpr auto makeIntExpr(T&& value) {
+    if constexpr (std::is_integral_v<std::decay_t<T>>) {
+        return IntExpr::number(value);
+    } else {
+        return std::forward<T>(value);
+    }
+}
 // Nets
-static NetDecl n(int msb, int lsb) {
-    return {Expr::number(msb), Expr::number(lsb)};
+template <typename T1, typename T2>
+static NetDecl n(T1&& msb, T2&& lsb) {
+    return NetDecl{makeIntExpr(std::forward<T1>(msb)),
+                   makeIntExpr(std::forward<T2>(lsb))};
 }
 
 TEST(IdString, Basic) {
@@ -38,17 +51,18 @@ TEST(Expr, WidthAndString) {
     md.mWires.push_back(WireDecl{y, n(3, 0)});
 
     ModuleSpec ms = elaborateModule(md);
-    auto id_x = Expr::id(x);
-    auto id_y = Expr::id(y);
-    auto s = Expr::slice(x, 5, 2);
-    auto c = Expr::concat({s, id_y}); // MSB: x[5:2] (4), LSB: y[3:0] (4) => 8
-    EXPECT_EQ(exprBitWidth(id_x, ms), 8u);
-    EXPECT_EQ(exprBitWidth(s, ms), 4u);
-    EXPECT_EQ(exprBitWidth(c, ms), 8u);
+    auto id_x = BVExpr::id(x);
+    auto id_y = BVExpr::id(y);
+    auto s = BVExpr::slice(x, 5, 2);
+    auto c =
+      BVExpr::concat({s, id_y}); // MSB: x[5:2] (4), LSB: y[3:0] (4) => 8
+    EXPECT_EQ(bvExprBitWidth(id_x, ms), 8u);
+    EXPECT_EQ(bvExprBitWidth(s, ms), 4u);
+    EXPECT_EQ(bvExprBitWidth(c, ms), 8u);
 
-    std::string s_str = exprToString(s);
+    std::string s_str = bvExprToString(s);
     EXPECT_EQ(s_str, "x[5:2]");
-    std::string c_str = exprToString(c);
+    std::string c_str = bvExprToString(c);
     EXPECT_EQ(c_str, "{x[5:2], y}");
 }
 
@@ -118,16 +132,16 @@ TEST(Flatten, IdSliceConcat) {
     ModuleSpec spec = elaborateModule(md);
     FlattenContext fc(spec, nullptr);
 
-    auto v_id = fc.flattenExpr(Expr::id(x));
+    auto v_id = fc.flattenExpr(BVExpr::id(x));
     EXPECT_EQ(v_id.size(), 8u);
     EXPECT_EQ(v_id.front().mKind, BitAtomKind::PortBit);
 
-    auto v_slice = fc.flattenExpr(Expr::slice(x, 5, 2));
+    auto v_slice = fc.flattenExpr(BVExpr::slice(x, 5, 2));
     EXPECT_EQ(v_slice.size(), 4u);
     EXPECT_EQ(v_slice.front().mBitIndex, 2u); // LSB-first; first is x[2]
 
     auto v_concat =
-      fc.flattenExpr(Expr::concat({Expr::slice(x, 5, 2), Expr::id(y)}));
+      fc.flattenExpr(BVExpr::concat({BVExpr::slice(x, 5, 2), BVExpr::id(y)}));
     EXPECT_EQ(v_concat.size(), 8u);
     EXPECT_EQ(v_concat.front().mKind,
               BitAtomKind::WireBit); // LSB comes from y
@@ -145,9 +159,10 @@ TEST(Elab, AssignWiring) {
     md.mPorts.push_back(PortDecl{out, PortDirection::Out, n(7, 0)});
 
     // assign out = {in[3:0], in[7:4]}
-    auto lhs = Expr::id(out);
-    auto rhs = Expr::concat({Expr::slice(in, 3, 0), Expr::slice(in, 7, 4)});
-    md.mAssigns.push_back(AssignStmt{lhs, rhs});
+    auto lhs = BVExpr::id(out);
+    auto rhs =
+      BVExpr::concat({BVExpr::slice(in, 3, 0), BVExpr::slice(in, 7, 4)});
+    md.mAssigns.push_back(AssignDecl{lhs, rhs});
 
     ModuleSpec spec = elaborateModule(md);
     wireAssigns(spec);
@@ -177,81 +192,85 @@ TEST(Generate, IfAndFor) {
     IdString g_if("g_if");
     IdString g_for("g_for");
 
-    // Callee A
-    ModuleDecl modA;
-    modA.mName = A;
-    modA.mPorts.push_back(PortDecl{p_in, PortDirection::In, n(7, 0)});
-    modA.mPorts.push_back(PortDecl{p_out, PortDirection::Out, n(7, 0)});
+    // Module declaration
+    ModuleDeclLib declLib;
+    // Module specificataion
+    ModuleSpecLib specLib;
 
-    // Top
-    ModuleDecl top;
-    top.mName = Top;
-    top.mParams.emplace(DO_EXTRA, 1);
-    top.mParams.emplace(REPL, 3);
-    top.mWires.push_back(WireDecl{w0, n(7, 0)});
-    top.mWires.push_back(WireDecl{w1, n(7, 0)});
-    top.mInstances.push_back(InstanceDecl{
-      uA,
-      A,
-      {},
-      {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}});
-    // if (DO_EXTRA) uA2
     {
-        GenIfDecl gi;
-        gi.mLabel = g_if;
-        gi.mCond = ast::Expr(ast::IdExpr{DO_EXTRA});
-        InstanceDecl x{
-          uA2,
+        // Callee A
+        ModuleDecl declA;
+        declA.mName = A;
+        declA.mPorts.push_back(PortDecl{p_in, PortDirection::In, n(7, 0)});
+        declA.mPorts.push_back(PortDecl{p_out, PortDirection::Out, n(7, 0)});
+
+        // Top
+        ModuleDecl declTop;
+        declTop.mName = Top;
+        declTop.mDefaults.emplace(DO_EXTRA, 1);
+        declTop.mDefaults.emplace(REPL, 3);
+        declTop.mWires.push_back(WireDecl{w0, n(7, 0)});
+        declTop.mWires.push_back(WireDecl{w1, n(7, 0)});
+        declTop.mInstances.push_back(InstanceDecl{
+          uA,
           A,
           {},
-          {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}};
-        gi.mThenBlks.push_back(std::move(x));
-        top.mGenBlks.push_back(std::move(gi));
-    }
-    // for i in [0,REPL)
-    {
-        GenForDecl gf;
-        gf.mLabel = g_for;
-        gf.mLoopVar = IdString("i");
-        gf.mStart = ast::Expr::number(0);
-        gf.mLimit = ast::Expr::id(REPL);
-        gf.mStep = ast::Expr::number(1);
-        InstanceDecl t{
-          IdString("U"),
-          A,
-          {},
-          {ConnDecl{p_in, Expr::id(w0)}, ConnDecl{p_out, Expr::id(w1)}}};
-        gf.mBlks.push_back(std::move(t));
-        top.mGenBlks.push_back(std::move(gf));
-    }
+          {ConnDecl{p_in, BVExpr::id(w0)}, ConnDecl{p_out, BVExpr::id(w1)}}});
+        // if (DO_EXTRA) uA2
+        {
+            GenIfDecl gi;
+            gi.mLabel = g_if;
+            gi.mCond = ast::IntExpr::id(DO_EXTRA);
+            InstanceDecl x{uA2,
+                           A,
+                           {},
+                           {ConnDecl{p_in, BVExpr::id(w0)},
+                            ConnDecl{p_out, BVExpr::id(w1)}}};
+            gi.mThenBlks.push_back(std::move(x));
+            declTop.mGenBlks.push_back(std::move(gi));
+        }
+        // for i in [0,REPL)
+        {
+            GenForDecl gf;
+            gf.mLabel = g_for;
+            gf.mLoopVar = IdString("i");
+            gf.mStart = ast::IntExpr::number(0);
+            gf.mLimit = ast::IntExpr::id(REPL);
+            gf.mStep = ast::IntExpr::number(1);
+            InstanceDecl t{IdString("U"),
+                           A,
+                           {},
+                           {ConnDecl{p_in, BVExpr::id(w0)},
+                            ConnDecl{p_out, BVExpr::id(w1)}}};
+            gf.mBlks.push_back(std::move(t));
+            declTop.mGenBlks.push_back(std::move(gf));
+        }
 
-    // Library
-    ModuleLibrary lib;
-    ASTIndex idx;
-    idx.emplace(Top, std::cref(top));
-    idx.emplace(A, std::cref(modA));
+        declLib.emplace(Top, std::move(declTop));
+        declLib.emplace(A, std::move(declA));
+    }
 
     // Get callee spec first
-    ModuleSpec& A_s = getOrCreateSpec(modA, {}, lib);
+    ModuleSpec& modA = getOrCreateSpec(declLib[A], {}, specLib);
 
     // Top spec with params
-    ModuleSpec& Top_s = getOrCreateSpec(top, {{DO_EXTRA, 1}, {REPL, 3}}, lib);
+    ModuleSpec& modTop =
+      getOrCreateSpec(declLib[Top], {{DO_EXTRA, 1}, {REPL, 3}}, specLib);
 
     // Link instances
-    linkInstances(Top_s, idx, lib, std::cerr);
-    EXPECT_EQ(Top_s.mInstances.size(), 1u /*base*/ + 1u /*if*/ + 3u /*for*/);
+    linkInstances(modTop, declLib, specLib, &std::cerr);
+    EXPECT_EQ(modTop.mInstances.size(), 1u /*base*/ + 1u /*if*/ + 3u /*for*/);
 
     // Check one binding width
-    ASSERT_FALSE(Top_s.mInstances.empty());
-    const auto& inst0 = Top_s.mInstances[0];
+    ASSERT_FALSE(modTop.mInstances.empty());
+    const auto& inst0 = modTop.mInstances[0];
     ASSERT_FALSE(inst0.mConnections.empty());
     const auto& b0 = inst0.mConnections[0];
     EXPECT_EQ(b0.mActual.size(), 8u);
 }
 
 TEST(ModuleKey, MakeKey) {
-    ParamSpec params{
-      {IdString("DO_EXTRA"), 1}, {IdString("REPL"), 2}};
+    ParamSpec params{{IdString("DO_EXTRA"), 1}, {IdString("REPL"), 2}};
     std::string key = makeModuleKey("Top", params);
     // Deterministic order: DO_EXTRA,REPL
     EXPECT_EQ(key, "Top#DO_EXTRA=1,REPL=2");

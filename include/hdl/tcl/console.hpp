@@ -123,7 +123,7 @@ class Console {
     };
 
   public:
-    Console(elab::ModuleLibrary& lib, const elab::ASTIndex& astIndex,
+    Console(elab::ModuleSpecLib& lib, const elab::ModuleDeclLib& ModuleDeclLib,
             std::ostream& diag);
     ~Console();
 
@@ -149,8 +149,9 @@ class Console {
 
     // Utilities (public so command files can reuse them)
     static std::string makeCmdLine(const std::string& sub, const Args& args);
-    static ast::ParamSpec parseParamTokens(const std::vector<std::string>& toks,
-                                      size_t startIdx, std::ostream& diag);
+    static elab::ParamSpec
+    parseParamTokens(const std::vector<std::string>& toks, size_t startIdx,
+                     std::ostream* diag);
 
     // Completions helpers (optional use)
     std::vector<std::string>
@@ -163,12 +164,13 @@ class Console {
     std::vector<std::string>
     completeWiresForKey(const std::string& key,
                         const std::string& prefix) const;
-    std::vector<std::string> completeParams(IdString moduleName,
+    std::vector<std::string> completeParams(const std::string& moduleName,
                                             const std::string& prefix) const;
 
     // Library helpers
-    elab::ModuleSpec* getSpecByKey(IdString key);
-    elab::ModuleSpec* getOrElabByName(IdString name, const ast::ParamSpec& env,
+    elab::ModuleSpec* getSpecByKey(std::string key);
+    elab::ModuleSpec* getOrElabByName(std::string name,
+                                      const elab::ParamSpec& env,
                                       IdString* outKey = nullptr);
     elab::ModuleSpec* currentPrimarySpec();
 
@@ -185,8 +187,8 @@ class Console {
     Tcl_Interp* interp() const { return mInterp; }
     Selection& selection() { return mSel; }
     const Selection& selection() const { return mSel; }
-    elab::ModuleLibrary& lib() { return mLib; }
-    const elab::ASTIndex& astIndex() const { return mAstIndex; }
+    elab::ModuleSpecLib& specLib() { return mSpecLib; }
+    const elab::ModuleDeclLib& declLib() const { return mDeclLib; }
 
     // Register all built-in commands (implemented in
     // src/tcl/cmd/register_all.cpp)
@@ -220,14 +222,18 @@ class Console {
     Tcl_Interp* mInterp = nullptr;
     std::unordered_map<std::string, Subcmd> mSubcmds;
 
-    elab::ModuleLibrary& mLib;
-    const elab::ASTIndex& mAstIndex;
+    elab::ModuleSpecLib& mSpecLib;
+    const elab::ModuleDeclLib& mDeclLib;
     Selection mSel;
     std::ostream& mDiag;
 
     std::vector<UndoEntry> mUndo;
     std::vector<UndoEntry> mRedo;
     bool mInReplay = false; // avoid re-recording when running undo/redo
+
+  private:
+    void warn(const std::string& msg) const;
+    void error(const std::string& msg) const;
 };
 
 } // namespace hdl::tcl

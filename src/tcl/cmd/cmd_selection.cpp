@@ -40,13 +40,13 @@ static int cmd_selection(Console& c, Tcl_Interp* ip, const Console::Args& a) {
         size_t wireN = c.selection().mWires.size();
         uint64_t portBits = 0, wireBits = 0;
         for (auto& r : c.selection().mPorts) {
-            if (auto* s = c.getSpecByKey(r.mSpecKey)) {
+            if (auto* s = c.getSpecByKey(r.mSpecKey.str())) {
                 int idx = s->findPortIndex(r.mName);
                 if (idx >= 0) portBits += s->mPorts[(size_t)idx].width();
             }
         }
         for (auto& r : c.selection().mWires) {
-            if (auto* s = c.getSpecByKey(r.mSpecKey)) {
+            if (auto* s = c.getSpecByKey(r.mSpecKey.str())) {
                 int idx = s->findWireIndex(r.mName);
                 if (idx >= 0) wireBits += s->mWires[(size_t)idx].width();
             }
@@ -79,7 +79,7 @@ static std::vector<std::string> rev_selection(Console&, const std::string&,
     for (auto& r : pre.mWires)
         inv.push_back("hdl select-wire " + r.mName.str() + " " +
                       r.mSpecKey.str());
-    if (!(pre.mPrimaryKey == hdl::IdString()))
+    if (pre.mPrimaryKey.valid())
         inv.push_back("hdl set-primary " + pre.mPrimaryKey.str());
     return inv;
 }

@@ -8,7 +8,7 @@ static int cmd_net_of(Console& c, Tcl_Interp* ip, const Console::Args& a) {
     size_t idx = 0;
     hdl::IdString key;
     if (a.size() == 4) {
-        key = hdl::IdString(a[0]);
+        key = hdl::IdString::tryLookup(a[0]);
         idx = 1;
     } else if (a.size() == 3) {
         key = c.selection().mPrimaryKey;
@@ -20,17 +20,17 @@ static int cmd_net_of(Console& c, Tcl_Interp* ip, const Console::Args& a) {
             "usage: hdl net-of [specKey] <port|wire> <name> <bitOff>", -1));
         return TCL_ERROR;
     }
-    if (key == hdl::IdString()) {
+    if (!key.valid()) {
         Tcl_SetObjResult(ip, Tcl_NewStringObj("no module context", -1));
         return TCL_ERROR;
     }
-    auto* s = c.getSpecByKey(key);
+    auto* s = c.getSpecByKey(key.str());
     if (!s) {
         Tcl_SetObjResult(ip, Tcl_NewStringObj("unknown specKey", -1));
         return TCL_ERROR;
     }
     const std::string& kind = a[idx + 0];
-    hdl::IdString name(a[idx + 1]);
+    auto name = hdl::IdString::tryLookup(a[idx + 1]);
     uint32_t bitOff = 0;
     try {
         bitOff = (uint32_t)std::stoul(a[idx + 2]);
@@ -60,7 +60,7 @@ static int cmd_render_bit(Console& c, Tcl_Interp* ip, const Console::Args& a) {
     hdl::IdString key;
     size_t idx = 0;
     if (a.size() == 2) {
-        key = hdl::IdString(a[0]);
+        key = hdl::IdString::tryLookup(a[0]);
         idx = 1;
     } else if (a.size() == 1) {
         key = c.selection().mPrimaryKey;
@@ -70,7 +70,7 @@ static int cmd_render_bit(Console& c, Tcl_Interp* ip, const Console::Args& a) {
           ip, Tcl_NewStringObj("usage: hdl render-bit [specKey] <bitId>", -1));
         return TCL_ERROR;
     }
-    auto* s = c.getSpecByKey(key);
+    auto* s = c.getSpecByKey(key.str());
     if (!s) {
         Tcl_SetObjResult(ip, Tcl_NewStringObj("unknown specKey", -1));
         return TCL_ERROR;
@@ -169,8 +169,8 @@ static std::vector<std::string> compl_net_of(Console& c,
             // propose a few example offsets based on a name match (if any)
             std::string name = toks[3];
             if (!s) return {};
-            int idx = ports ? s->findPortIndex(hdl::IdString(name))
-                            : s->findWireIndex(hdl::IdString(name));
+            int idx = ports ? s->findPortIndex(hdl::IdString::tryLookup(name))
+                            : s->findWireIndex(hdl::IdString::tryLookup(name));
             if (idx < 0) return {};
             uint32_t w = ports ? s->mPorts[(size_t)idx].width()
                                : s->mWires[(size_t)idx].width();
@@ -187,8 +187,9 @@ static std::vector<std::string> compl_net_of(Console& c,
     }
 
     // Arg2 is specKey: net-of <specKey> <kind> <name> [bitOff]
-    hdl::IdString key(toks[2]);
-    hdl::elab::ModuleSpec* s = c.getSpecByKey(key);
+    auto key = hdl::IdString::tryLookup(toks[2]);
+    if (!key.valid()) return {};
+    hdl::elab::ModuleSpec* s = c.getSpecByKey(key.str());
     if (!s) return {};
 
     if (toks.size() == 4) {
@@ -202,8 +203,8 @@ static std::vector<std::string> compl_net_of(Console& c,
     if (toks.size() == 6) {
         bool ports = (toks[3] == "port");
         std::string name = toks[4];
-        int idx = ports ? s->findPortIndex(hdl::IdString(name))
-                        : s->findWireIndex(hdl::IdString(name));
+        int idx = ports ? s->findPortIndex(hdl::IdString::tryLookup(name))
+                        : s->findWireIndex(hdl::IdString::tryLookup(name));
         if (idx < 0) return {};
         uint32_t w = ports ? s->mPorts[(size_t)idx].width()
                            : s->mWires[(size_t)idx].width();
@@ -239,8 +240,8 @@ static std::vector<std::string> compl_render_bit(Console& c,
     }
     // With explicit specKey, suggest a few bitIds based on size
     if (toks.size() == 4) {
-        hdl::IdString key(toks[2]);
-        hdl::elab::ModuleSpec* s = c.getSpecByKey(key);
+        auto key = hdl::IdString::tryLookup(toks[2]);
+        hdl::elab::ModuleSpec* s = c.getSpecByKey(key.str());
         if (!s) return {};
         uint32_t N = s->mBitMap.mConn.size();
         std::vector<std::string> out;

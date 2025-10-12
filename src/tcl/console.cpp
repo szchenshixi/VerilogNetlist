@@ -1,8 +1,8 @@
+#include "hdl/util/id_string.hpp"
 #include <algorithm>
 #include <cctype>
 #include <csignal>
 #include <cstring>
-#include <set>
 #include <sstream>
 
 #ifdef HDL_HAVE_READLINE
@@ -11,9 +11,9 @@
 #endif
 
 #include "hdl/ast/decl.hpp"
+#include "hdl/common.hpp"
 #include "hdl/elab/elaborate.hpp"
 #include "hdl/elab/spec.hpp"
-#include "hdl/hier/instance.hpp"
 #include "hdl/tcl/console.hpp"
 
 // Register-all header (local to src tree)
@@ -40,10 +40,10 @@ static inline std::vector<std::string> split_words(const std::string& s) {
     return out;
 }
 
-Console::Console(elab::ModuleLibrary& lib, const elab::ASTIndex& astIndex,
-                 std::ostream& diag)
-    : mLib(lib)
-    , mAstIndex(astIndex)
+Console::Console(elab::ModuleSpecLib& specLib,
+                 const elab::ModuleDeclLib& declLib, std::ostream& diag)
+    : mSpecLib(specLib)
+    , mDeclLib(declLib)
     , mDiag(diag) {}
 
 Console::~Console() {
@@ -57,8 +57,7 @@ bool Console::init() {
     mInterp = Tcl_CreateInterp();
     if (!mInterp) return false;
     if (Tcl_Init(mInterp) != TCL_OK) {
-        mDiag << "ERROR: Tcl_Init failed: " << Tcl_GetStringResult(mInterp)
-              << "\n";
+        error(std::string("Tcl_Init failed: ") + Tcl_GetStringResult(mInterp));
         return false;
     }
     registerAllBuiltins();
@@ -295,25 +294,27 @@ std::string Console::makeCmdLine(const std::string& sub, const Args& args) {
     return oss.str();
 }
 
-ast::ParamSpec Console::parseParamTokens(const std::vector<std::string>& toks,
-                                        size_t startIdx, std::ostream& diag) {
-    ast::ParamSpec env;
+elab::ParamSpec Console::parseParamTokens(const std::vector<std::string>& toks,
+                                          size_t startIdx,
+                                          std::ostream* diag) {
+    elab::ParamSpec env;
     for (size_t i = startIdx; i < toks.size(); ++i) {
         const std::string& t = toks[i];
         auto eq = t.find('=');
         if (eq == std::string::npos || eq == 0 || eq + 1 >= t.size()) {
-            diag << "WARN: ignoring param token (expect NAME=VALUE): " << t
-                 << "\n";
+            hdl::warn(diag, "ignoring param token (expect NAME=VALUE): " + t);
             continue;
         }
-        std::string name = t.substr(0, eq);
+        auto name = IdString::tryLookup(t.substr(0, eq));
+        if (!name.valid()) {
+            hdl::warn(diag, "unknown param name: " + t);
+            continue;
+        }
         std::string val = t.substr(eq + 1);
         try {
             long long v = std::stoll(val);
-            env[IdString(name)] = v;
-        } catch (...) {
-            diag << "WARN: non-integer param value: " << t << "\n";
-        }
+            env[name] = v;
+        } catch (...) { hdl::warn(diag, "non-integer param value: " + t); }
     }
     return env;
 }
@@ -321,7 +322,7 @@ ast::ParamSpec Console::parseParamTokens(const std::vector<std::string>& toks,
 std::vector<std::string>
 Console::completeModules(const std::string& prefix) const {
     std::vector<std::string> r;
-    for (auto& kv : mAstIndex) {
+    for (auto& kv : mDeclLib) {
         const auto& name = kv.first.str();
         if (prefix.empty() || name.rfind(prefix, 0) == 0) r.push_back(name);
     }
@@ -331,9 +332,9 @@ Console::completeModules(const std::string& prefix) const {
 std::vector<std::string>
 Console::completeSpecKeys(const std::string& prefix) const {
     std::vector<std::string> r;
-    for (auto& kv : mLib)
-        if (prefix.empty() || kv.first.rfind(prefix, 0) == 0)
-            r.push_back(kv.first);
+    for (auto& kv : mSpecLib)
+        if (prefix.empty() || kv.first.str().rfind(prefix, 0) == 0)
+            r.push_back(kv.first.str());
     std::sort(r.begin(), r.end());
     return r;
 }
@@ -341,8 +342,8 @@ std::vector<std::string>
 Console::completePortsForKey(const std::string& key,
                              const std::string& prefix) const {
     std::vector<std::string> r;
-    auto it = mLib.find(key);
-    if (it == mLib.end()) return r;
+    auto it = mSpecLib.find(IdString::tryLookup(key));
+    if (it == mSpecLib.end()) return r;
     const auto& spec = it->second;
     for (auto& p : spec.mPorts) {
         auto s = p.mName.str();
@@ -355,8 +356,8 @@ std::vector<std::string>
 Console::completeWiresForKey(const std::string& key,
                              const std::string& prefix) const {
     std::vector<std::string> r;
-    auto it = mLib.find(key);
-    if (it == mLib.end()) return r;
+    auto it = mSpecLib.find(IdString::tryLookup(key));
+    if (it == mSpecLib.end()) return r;
     const auto& spec = it->second;
     for (auto& w : spec.mWires) {
         auto s = w.mName.str();
@@ -366,40 +367,38 @@ Console::completeWiresForKey(const std::string& key,
     return r;
 }
 std::vector<std::string>
-Console::completeParams(IdString moduleName,
+Console::completeParams(const std::string& moduleName,
                         const std::string& /*prefix*/) const {
     std::vector<std::string> r;
-    auto it = mAstIndex.find(moduleName);
-    if (it == mAstIndex.end()) return r;
-    const ast::ModuleDecl& d = it->second.get();
-    for (auto& [key, _] : d.mParams) {
+    auto it = mDeclLib.find(IdString(moduleName, IdString::NoIntern));
+    if (it == mDeclLib.end()) return r;
+    const ast::ModuleDecl& d = it->second;
+    for (auto& [key, _] : d.mDefaults) {
         r.push_back(key.str() + "=");
     }
     std::sort(r.begin(), r.end());
     return r;
 }
 
-elab::ModuleSpec* Console::getSpecByKey(IdString key) {
-    if (key == IdString()) return nullptr;
-    auto it = mLib.find(key.str());
-    if (it == mLib.end()) return nullptr;
+elab::ModuleSpec* Console::getSpecByKey(std::string key) {
+    auto it = mSpecLib.find(IdString(key, IdString::NoIntern));
+    if (it == mSpecLib.end()) return nullptr;
     return &it->second;
 }
-elab::ModuleSpec* Console::getOrElabByName(IdString name,
-                                           const ast::ParamSpec& env,
+elab::ModuleSpec* Console::getOrElabByName(std::string name,
+                                           const elab::ParamSpec& env,
                                            IdString* outKey) {
-    auto itAst = mAstIndex.find(name);
-    if (itAst == mAstIndex.end()) return nullptr;
-    elab::ModuleSpec& s =
-      elab::getOrCreateSpec(itAst->second.get(), env, mLib);
-    elab::linkInstances(s, mAstIndex, mLib, mDiag);
-    IdString key(elab::makeModuleKey(name.str(), env));
+    auto it = mDeclLib.find(IdString(name, IdString::NoIntern));
+    if (it == mDeclLib.end()) return nullptr;
+    elab::ModuleSpec& s = elab::getOrCreateSpec(it->second, env, mSpecLib);
+    elab::linkInstances(s, mDeclLib, mSpecLib, &mDiag);
+    IdString key(elab::makeModuleKey(name, env));
     if (outKey) *outKey = key;
     return &s;
 }
 elab::ModuleSpec* Console::currentPrimarySpec() {
-    if (mSel.mPrimaryKey == IdString()) return nullptr;
-    return getSpecByKey(mSel.mPrimaryKey);
+    if (!mSel.mPrimaryKey.valid()) return nullptr;
+    return getSpecByKey(mSel.mPrimaryKey.str());
 }
 bool Console::resolvePortName(const elab::ModuleSpec& spec,
                               const std::string& tok, IdString& out) const {
@@ -493,4 +492,8 @@ int Console::doRedo(Tcl_Interp* ip) {
     return TCL_OK;
 }
 
+void Console::warn(const std::string& msg) const { ::hdl::warn(&mDiag, msg); }
+void Console::error(const std::string& msg) const {
+    ::hdl::error(&mDiag, msg);
+}
 } // namespace hdl::tcl

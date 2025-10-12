@@ -13,13 +13,13 @@ static int cmd_select_port(Console& c, Tcl_Interp* ip,
           Tcl_NewStringObj("usage: select-port <name|index> [specKey]", -1));
         return TCL_ERROR;
     }
-    hdl::IdString key =
-      (a.size() >= 2) ? hdl::IdString(a[1]) : c.selection().mPrimaryKey;
-    if (key == hdl::IdString()) {
+    hdl::IdString key = (a.size() >= 2) ? hdl::IdString::tryLookup(a[1])
+                                        : c.selection().mPrimaryKey;
+    if (!key.valid()) {
         Tcl_SetObjResult(ip, Tcl_NewStringObj("no module context", -1));
         return TCL_ERROR;
     }
-    auto* s = c.getSpecByKey(key);
+    auto* s = c.getSpecByKey(key.str());
     if (!s) {
         Tcl_SetObjResult(ip, Tcl_NewStringObj("unknown specKey", -1));
         return TCL_ERROR;
@@ -51,9 +51,9 @@ static std::vector<std::string> rev_select_port(Console& c, const std::string&,
     std::vector<std::string> inv;
     if (a.empty()) return inv;
     hdl::IdString key =
-      (a.size() >= 2) ? hdl::IdString(a[1]) : pre.mPrimaryKey;
-    if (key == hdl::IdString()) return inv;
-    auto* s = c.getSpecByKey(key);
+      (a.size() >= 2) ? hdl::IdString::tryLookup(a[1]) : pre.mPrimaryKey;
+    if (!key.valid()) return inv;
+    auto* s = c.getSpecByKey(key.str());
     if (!s) return inv;
     hdl::IdString pname;
     if (!c.resolvePortName(*s, a[0], pname)) return inv;
@@ -63,8 +63,7 @@ static std::vector<std::string> rev_select_port(Console& c, const std::string&,
             was = true;
             break;
         }
-    if (!was)
-        inv.push_back("unselect-port " + pname.str() + " " + key.str());
+    if (!was) inv.push_back("unselect-port " + pname.str() + " " + key.str());
     return inv;
 }
 
@@ -73,13 +72,12 @@ static int cmd_unselect_port(Console& c, Tcl_Interp* ip,
     if (a.empty()) {
         Tcl_SetObjResult(
           ip,
-          Tcl_NewStringObj("usage: unselect-port <name|index> [specKey]",
-                           -1));
+          Tcl_NewStringObj("usage: unselect-port <name|index> [specKey]", -1));
         return TCL_ERROR;
     }
-    hdl::IdString key =
-      (a.size() >= 2) ? hdl::IdString(a[1]) : c.selection().mPrimaryKey;
-    auto* s = c.getSpecByKey(key);
+    hdl::IdString key = (a.size() >= 2) ? hdl::IdString::tryLookup(a[1])
+                                        : c.selection().mPrimaryKey;
+    auto* s = c.getSpecByKey(key.str());
     if (!s) {
         Tcl_SetObjResult(ip, Tcl_NewStringObj("unknown specKey", -1));
         return TCL_ERROR;
@@ -101,9 +99,9 @@ static std::vector<std::string> rev_unselect_port(Console& c,
     std::vector<std::string> inv;
     if (a.empty()) return inv;
     hdl::IdString key =
-      (a.size() >= 2) ? hdl::IdString(a[1]) : pre.mPrimaryKey;
-    if (key == hdl::IdString()) return inv;
-    auto* s = c.getSpecByKey(key);
+      (a.size() >= 2) ? hdl::IdString::tryLookup(a[1]) : pre.mPrimaryKey;
+    if (!key.valid()) return inv;
+    auto* s = c.getSpecByKey(key.str());
     if (!s) return inv;
     hdl::IdString pname;
     if (!c.resolvePortName(*s, a[0], pname)) return inv;
@@ -122,7 +120,7 @@ static int cmd_list_ports(Console& c, Tcl_Interp* ip, const Console::Args&) {
     }
     std::ostringstream oss;
     for (auto& key : c.selection().mModuleKeys) {
-        auto* s = c.getSpecByKey(key);
+        auto* s = c.getSpecByKey(key.str());
         if (!s) continue;
         oss << "Module " << key.str() << ":\n";
         for (size_t i = 0; i < s->mPorts.size(); ++i) {
@@ -148,7 +146,8 @@ void register_cmd_ports(Console& c) {
                       &cmd_unselect_port,
                       nullptr,
                       &rev_unselect_port);
-    c.registerCommand(
-      "list-ports", "List ports of selected modules: list-ports", &cmd_list_ports);
+    c.registerCommand("list-ports",
+                      "List ports of selected modules: list-ports",
+                      &cmd_list_ports);
 }
 } // namespace hdl::tcl

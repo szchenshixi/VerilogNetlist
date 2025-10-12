@@ -9,8 +9,8 @@ static int cmd_elab(Console& c, Tcl_Interp* ip, const Console::Args& a) {
           ip, Tcl_NewStringObj("usage: elab <name> [PARAM=VALUE ...]", -1));
         return TCL_ERROR;
     }
-    hdl::IdString name(a[0]);
-    auto env = Console::parseParamTokens(a, 1, std::cerr);
+    std::string name(a[0]);
+    auto env = Console::parseParamTokens(a, 1, &std::cerr);
     hdl::IdString key;
     if (!c.getOrElabByName(name, env, &key)) {
         Tcl_SetObjResult(ip, Tcl_NewStringObj("unknown module name", -1));
@@ -28,12 +28,13 @@ static std::vector<std::string> rev_elab(Console& c, const std::string&,
                                          const Selection& pre) {
     std::vector<std::string> inv;
     if (args.empty()) return inv;
-    hdl::IdString name(args[0]);
-    auto env = Console::parseParamTokens(args, 1, std::cerr);
-    hdl::IdString key(hdl::elab::makeModuleKey(name.str(), env));
+    auto env = Console::parseParamTokens(args, 1, &std::cerr);
+    hdl::IdString key(hdl::elab::makeModuleKey(args[0], env),
+                      hdl::IdString::NoIntern);
     if (!pre.hasModuleKey(key)) inv.push_back("unselect-module " + key.str());
-    if (!(pre.mPrimaryKey == hdl::IdString()))
+    if (pre.mPrimaryKey.valid()) {
         inv.push_back("set-primary " + pre.mPrimaryKey.str());
+    }
     return inv;
 }
 
@@ -44,7 +45,7 @@ static std::vector<std::string> compl_elab(Console& c,
         std::string pref = toks.size() >= 2 ? toks[1] : "";
         return c.completeModules(pref);
     }
-    hdl::IdString modName(toks[1]);
+    std::string modName(toks[1]);
     std::string last = toks.back();
     return c.completeParams(modName, last);
 }

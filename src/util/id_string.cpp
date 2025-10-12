@@ -1,7 +1,6 @@
 #include "hdl/util/id_string.hpp"
 
 namespace hdl {
-
 IdString::Pool& IdString::pool() {
     static Pool p;
     return p;
@@ -10,12 +9,20 @@ IdString::Pool& IdString::pool() {
 uint32_t IdString::internGlobal(std::string_view sv) {
     auto& p = pool();
     std::lock_guard<std::mutex> lock(p.mMu);
-    auto it = p.mMap.find(std::string(sv));
-    if (it != p.mMap.end()) return it->second;
+    if (auto it = p.mMap.find(sv); it != p.mMap.end()) { return it->second; }
+
+    std::string owned{sv};
     uint32_t id = static_cast<uint32_t>(p.mPool.size());
-    p.mPool.emplace_back(sv);
-    p.mMap.emplace(p.mPool.back(), id);
+    p.mPool.push_back(owned);
+    p.mMap.emplace(std::move(owned), id);
     return id;
+}
+
+uint32_t IdString::lookupGlobal(std::string_view sv) {
+    auto& p = pool();
+    std::lock_guard<std::mutex> lock(p.mMu);
+    if (auto it = p.mMap.find(sv); it != p.mMap.end()) { return it->second; }
+    return kInvalid;
 }
 
 const std::string& IdString::resolveGlobal(uint32_t id) {
@@ -23,5 +30,4 @@ const std::string& IdString::resolveGlobal(uint32_t id) {
     if (id == kInvalid || id >= p.mPool.size()) { return getInvalidStr(); }
     return p.mPool[id];
 }
-
 } // namespace hdl

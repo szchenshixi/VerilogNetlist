@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include <string>
-#include <vector>
 
 #include "hdl/ast/expr.hpp"
 #include "hdl/elab/bits.hpp"
@@ -21,13 +20,12 @@ struct FlattenContext {
 
     BitVector flattenId(IdString name) const;
     BitVector flattenNumber(uint64_t value, int width) const;
-    BitVector flattenSlice(const ast::SliceExpr& s) const;
-    BitVector flattenConcat(const ast::ConcatExpr& c) const;
-    BitVector flattenExpr(const ast::Expr& e) const;
+    BitVector flattenSlice(const ast::BVSlice& s) const;
+    BitVector flattenConcat(const ast::BVConcat& c) const;
+    BitVector flattenExpr(const ast::BVExpr& e) const;
 
-    void error(const std::string& msg) const {
-        if (mDiag) (*mDiag) << "ERROR: " << msg << "\n";
-    }
+    void warn(const std::string& msg) const;
+    void error(const std::string& msg) const;
 };
 
 } // namespace hdl::elab
