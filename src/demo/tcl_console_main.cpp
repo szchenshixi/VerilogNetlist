@@ -39,7 +39,7 @@ int main() {
     IdString DO_EXTRA("DO_EXTRA"), REPL("REPL");
 
     // Module declarations
-    elab::ModuleDeclLib declLib;
+    ModuleDeclLib declLib;
     // Module specifications
     ModuleSpecLib specLib;
     {
@@ -90,10 +90,10 @@ int main() {
     }
 
     // Build the specialization key for Top with defaults so Console can find
-    IdString topKey(elab::makeModuleKey(specTop.mName.str(), specTop.mEnv));
-    if (console.getSpecByKey(topKey.str())) {
-        console.selection().mModuleKeys.push_back(topKey);
-        console.selection().mPrimaryKey = topKey;
+    auto topKey = makeModuleKey(specTop.mName.str(), specTop.mEnv);
+    if (console.getSpecByKey(topKey)) {
+        console.selection().mModuleKeys.push_back(IdString(topKey));
+        console.selection().mPrimaryKey = IdString(topKey);
     }
 
     return console.repl();

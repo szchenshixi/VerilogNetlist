@@ -220,7 +220,7 @@ TEST(Generate, IfAndFor) {
         {
             GenIfDecl gi;
             gi.mLabel = g_if;
-            gi.mCond = ast::IntExpr::id(DO_EXTRA);
+            gi.mCond = IntExpr::id(DO_EXTRA);
             InstanceDecl x{uA2,
                            A,
                            {},
@@ -234,9 +234,9 @@ TEST(Generate, IfAndFor) {
             GenForDecl gf;
             gf.mLabel = g_for;
             gf.mLoopVar = IdString("i");
-            gf.mStart = ast::IntExpr::number(0);
-            gf.mLimit = ast::IntExpr::id(REPL);
-            gf.mStep = ast::IntExpr::number(1);
+            gf.mStart = IntExpr::number(0);
+            gf.mLimit = IntExpr::id(REPL);
+            gf.mStep = IntExpr::number(1);
             InstanceDecl t{IdString("U"),
                            A,
                            {},
@@ -264,13 +264,16 @@ TEST(Generate, IfAndFor) {
     // Check one binding width
     ASSERT_FALSE(modTop.mInstances.empty());
     const auto& inst0 = modTop.mInstances[0];
-    ASSERT_FALSE(inst0.mConnections.empty());
-    const auto& b0 = inst0.mConnections[0];
+    ASSERT_FALSE(inst0.mConns.empty());
+    const auto& b0 = inst0.mConns[0];
     EXPECT_EQ(b0.mActual.size(), 8u);
 }
 
 TEST(ModuleKey, MakeKey) {
-    ParamSpec params{{IdString("DO_EXTRA"), 1}, {IdString("REPL"), 2}};
+    IdString DO_EXTRA("DO_EXTRA");
+    IdString REPL("REPL");
+
+    ParamSpec params{{DO_EXTRA, 1}, {REPL, 2}};
     std::string key = makeModuleKey("Top", params);
     // Deterministic order: DO_EXTRA,REPL
     EXPECT_EQ(key, "Top#DO_EXTRA=1,REPL=2");

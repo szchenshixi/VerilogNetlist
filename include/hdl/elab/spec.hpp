@@ -30,21 +30,21 @@ struct WireSpec {
     uint32_t width() const { return mNet.width(); }
 };
 
-namespace hier {
-struct PortBinding {
+struct ConnSpec {
     uint32_t mFormalIndex = 0; // index into callee->mPorts
     BitVector mActual;         // flattened actual bits in parent scope
 };
 
-struct ModuleInstance {
+struct InstanceSpec {
     IdString mName;
     const struct ModuleSpec* mCallee = nullptr;
-    std::vector<PortBinding> mConnections;
+    std::vector<ConnSpec> mConns;
 };
-} // namespace hier
 
 struct ModuleSpec {
     IdString mName;
+    const ast::ModuleDecl* mDecl = nullptr; // back-pointer to AST
+    std::vector<InstanceSpec> mInstances;
     std::vector<PortSpec> mPorts;
     std::vector<WireSpec> mWires;
 
@@ -54,10 +54,6 @@ struct ModuleSpec {
     ParamSpec mEnv;
 
     net::BitMap mBitMap;
-
-    const ast::ModuleDecl* mDecl = nullptr; // back-pointer to AST
-
-    std::vector<hier::ModuleInstance> mInstances;
 
     int findPortIndex(IdString n) const;
     int findWireIndex(IdString n) const;

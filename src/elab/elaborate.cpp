@@ -272,8 +272,8 @@ void linkInstances(ModuleSpec& spec, const ModuleDeclLib& declLib,
         ModuleSpec& callee =
           getOrCreateSpec(calleeDecl, calleeParams, spceLib);
 
-        // Create ModuleInstance with port bindings
-        hier::ModuleInstance inst;
+        // Create InstanceSpec with port bindings
+        InstanceSpec inst;
         inst.mName = idecl.mName;
         inst.mCallee = &callee;
 
@@ -297,8 +297,8 @@ void linkInstances(ModuleSpec& spec, const ModuleDeclLib& declLib,
                         " actual=" + ast::bvExprToString(c.mActual));
                 continue;
             }
-            inst.mConnections.push_back(hier::PortBinding{
-              static_cast<uint32_t>(formalIdx), std::move(actual)});
+            inst.mConns.push_back(
+              ConnSpec{static_cast<uint32_t>(formalIdx), std::move(actual)});
         }
 
         spec.mInstances.push_back(std::move(inst));
@@ -324,9 +324,9 @@ static void dumpRecur(const ModuleSpec& spec, std::ostream& os,
            << (inst.mCallee ? inst.mCallee->mName.str()
                             : std::string("<null>"))
            << "\n";
-        if (!inst.mConnections.empty()) {
+        if (!inst.mConns.empty()) {
             os << Indent(indent + 6) << "Connections:\n";
-            for (const auto& b : inst.mConnections) {
+            for (const auto& b : inst.mConns) {
                 const auto& p = inst.mCallee->mPorts[b.mFormalIndex];
                 os << Indent(indent + 8) << p.mName.str() << " ("
                    << to_string(p.mDir) << ") <= [";

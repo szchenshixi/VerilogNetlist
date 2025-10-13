@@ -15,7 +15,7 @@ static inline int bitWidth(const elab::WireSpec& w) {
     return static_cast<int>(w.width());
 }
 
-static std::string makePinId(const elab::hier::ModuleInstance& inst,
+static std::string makePinId(const elab::InstanceSpec& inst,
                              const elab::PortSpec& formal) {
     return inst.mName.str() + "." + formal.mName.str();
 }
@@ -73,7 +73,7 @@ struct Segment {
 
 static std::vector<Segment>
 segmentsForBinding(const elab::ModuleSpec& spec,
-                   const elab::hier::ModuleInstance& inst, int formalIdx,
+                   const elab::InstanceSpec& inst, int formalIdx,
                    const elab::BitVector& actual) {
     std::vector<Segment> segs;
     if (!inst.mCallee) return segs;
@@ -125,7 +125,7 @@ static void buildEdges(const elab::ModuleSpec& spec, json& outEdges) {
     for (const auto& inst : spec.mInstances) {
         if (!inst.mCallee) continue;
 
-        for (const auto& pb : inst.mConnections) {
+        for (const auto& pb : inst.mConns) {
             const int formalIdx = static_cast<int>(pb.mFormalIndex);
             const auto& formal = inst.mCallee->mPorts[formalIdx];
             const std::string pinId = makePinId(inst, formal);

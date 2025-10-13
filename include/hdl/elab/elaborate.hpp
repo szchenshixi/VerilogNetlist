@@ -37,7 +37,7 @@ using ModuleDeclLib =
 void linkInstances(ModuleSpec& spec, const ModuleDeclLib& declLib,
                    ModuleSpecLib& specLib, std::ostream* diag);
 
-// Hierarchy dump using ModuleSpec -> ModuleInstance -> ModuleSpec pattern.
+// Hierarchy dump using ModuleSpec -> InstanceSpec -> ModuleSpec pattern.
 namespace hier {
 
 struct ScopeId {

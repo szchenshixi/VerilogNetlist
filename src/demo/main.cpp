@@ -17,17 +17,16 @@ static NetDecl makeNet(int msb, int lsb) {
     return e;
 }
 
-static ast::PortDecl makePort(IdString name, PortDirection dir, int msb,
-                              int lsb) {
-    ast::PortDecl p;
+static PortDecl makePort(IdString name, PortDirection dir, int msb, int lsb) {
+    PortDecl p;
     p.mName = name;
     p.mDir = dir;
     p.mNet = makeNet(msb, lsb);
     return p;
 }
 
-static ast::WireDecl makeWire(IdString name, int msb, int lsb) {
-    ast::WireDecl w;
+static WireDecl makeWire(IdString name, int msb, int lsb) {
+    WireDecl w;
     w.mName = name;
     w.mNet = makeNet(msb, lsb);
     return w;
@@ -52,31 +51,31 @@ int main() {
     IdString g_for = IdString("g_for");
 
     // Module declaration
-    elab::ModuleDeclLib declLib;
+    ModuleDeclLib declLib;
     // Module specification
     ModuleSpecLib specLib;
     {
         // Module A
-        ast::ModuleDecl declA;
+        ModuleDecl declA;
         declA.mName = A;
         declA.mPorts.push_back(makePort(p_in, PortDirection::In, 7, 0));
         declA.mPorts.push_back(makePort(p_out, PortDirection::Out, 7, 0));
         {
-            auto lhs = ast::BVExpr::id(p_out);
-            auto s0 = ast::BVExpr::slice(p_in, 3, 0);
-            auto s1 = ast::BVExpr::slice(p_in, 7, 4);
-            std::vector<ast::BVExpr> parts;
+            auto lhs = BVExpr::id(p_out);
+            auto s0 = BVExpr::slice(p_in, 3, 0);
+            auto s1 = BVExpr::slice(p_in, 7, 4);
+            std::vector<BVExpr> parts;
             parts.emplace_back(s0); // MSB part
             parts.emplace_back(s1); // LSB part
-            auto rhs = ast::BVExpr::concat(std::move(parts));
-            ast::AssignDecl asg;
+            auto rhs = BVExpr::concat(std::move(parts));
+            AssignDecl asg;
             asg.mLhs = lhs;
             asg.mRhs = rhs;
             declA.mAssigns.push_back(std::move(asg));
         }
 
         // Top with params and generates
-        ast::ModuleDecl declTop;
+        ModuleDecl declTop;
         declTop.mName = Top;
         declTop.mDefaults.emplace(DO_EXTRA, 1);
         declTop.mDefaults.emplace(REPL, 2);
@@ -85,41 +84,41 @@ int main() {
         declTop.mWires.push_back(makeWire(w2, 7, 0));
         declTop.mWires.push_back(makeWire(w3, 7, 0));
         {
-            ast::InstanceDecl inst;
+            InstanceDecl inst;
             inst.mName = uA;
             inst.mTargetModule = A;
-            ast::ConnDecl c0{p_in, ast::BVExpr::id(w0)};
-            ast::ConnDecl c1{p_out, ast::BVExpr::id(w1)};
+            ConnDecl c0{p_in, BVExpr::id(w0)};
+            ConnDecl c1{p_out, BVExpr::id(w1)};
             inst.mConns.push_back(std::move(c0));
             inst.mConns.push_back(std::move(c1));
             declTop.mInstances.push_back(std::move(inst));
         }
         {
-            ast::GenIfDecl gi;
+            GenIfDecl gi;
             gi.mLabel = g_if;
-            gi.mCond = ast::IntExpr::id(DO_EXTRA);
-            ast::InstanceDecl uAx;
+            gi.mCond = IntExpr::id(DO_EXTRA);
+            InstanceDecl uAx;
             uAx.mName = uA_extra;
             uAx.mTargetModule = A;
-            ast::ConnDecl c0{p_in, ast::BVExpr::id(w2)};
-            ast::ConnDecl c1{p_out, ast::BVExpr::id(w3)};
+            ConnDecl c0{p_in, BVExpr::id(w2)};
+            ConnDecl c1{p_out, BVExpr::id(w3)};
             uAx.mConns.push_back(std::move(c0));
             uAx.mConns.push_back(std::move(c1));
             gi.mThenBlks.push_back(std::move(uAx));
             declTop.mGenBlks.push_back(std::move(gi));
         }
         {
-            ast::GenForDecl gf;
+            GenForDecl gf;
             gf.mLabel = g_for;
             gf.mLoopVar = IdString("i");
-            gf.mStart = ast::IntExpr::number(0);
-            gf.mLimit = ast::IntExpr::id(REPL);
-            gf.mStep = ast::IntExpr::number(1);
-            ast::InstanceDecl uAr;
+            gf.mStart = IntExpr::number(0);
+            gf.mLimit = IntExpr::id(REPL);
+            gf.mStep = IntExpr::number(1);
+            InstanceDecl uAr;
             uAr.mName = uA_rep;
             uAr.mTargetModule = A;
-            ast::ConnDecl c0{p_in, ast::BVExpr::id(w0)};
-            ast::ConnDecl c1{p_out, ast::BVExpr::id(w1)};
+            ConnDecl c0{p_in, BVExpr::id(w0)};
+            ConnDecl c1{p_out, BVExpr::id(w1)};
             uAr.mConns.push_back(std::move(c0));
             uAr.mConns.push_back(std::move(c1));
             gf.mBlks.push_back(std::move(uAr));
@@ -132,11 +131,11 @@ int main() {
 
     // Elaborate A (no params)
     auto envA = ParamSpec{};
-    elab::ModuleSpec& modA = getOrCreateSpec(declLib[A], envA, specLib);
+    ModuleSpec& modA = getOrCreateSpec(declLib[A], envA, specLib);
 
     // Elaborate Top with defaults
     auto envTop = ParamSpec{{DO_EXTRA, 1}, {REPL, 2}};
-    elab::ModuleSpec& modTop = getOrCreateSpec(declLib[Top], envTop, specLib);
+    ModuleSpec& modTop = getOrCreateSpec(declLib[Top], envTop, specLib);
 
     // Link instances inside each module
     linkInstances(modTop, declLib, specLib, &std::cerr);
@@ -155,7 +154,7 @@ int main() {
     modTop.dumpConnectivity(std::cout);
 
     // Dump hierarchy starting from Top
-    std::cout << "\n=== Instance Hierarchy (ModuleSpec -> ModuleInstance ->"
+    std::cout << "\n=== Instance Hierarchy (ModuleSpec -> InstanceSpec ->"
                  "ModuleSpec) ===\n";
     hier::dumpInstanceTree(modTop, std::cout);
 
